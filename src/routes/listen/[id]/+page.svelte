@@ -22,6 +22,7 @@
     import { enhance } from "$app/forms";
     import { onMount } from "svelte";
     import CommentList from "$lib/components/comment_list.svelte";
+    import StreamChatList from "$lib/components/stream_chat_list.svelte";
     import title from "$lib/title";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import type { ClientsideComment } from "$lib/types.js";
@@ -195,6 +196,24 @@
             <p>No comments yet</p>
         {/if}
     </section>
+
+    {#if data.archivedStreamChats && data.archivedStreamChats.length > 0 && data.archivedStreamId}
+        <details class="chat-history">
+            <summary>Stream Chat History</summary>
+            <StreamChatList
+                streamId={data.archivedStreamId}
+                chats={data.archivedStreamChats}
+                user={data.user}
+                isAdmin={data.isAdmin}
+                streamOwnerId={data.audio.user?.id ?? null}
+                onDelete={async (chatId) => {
+                    await fetch(`/live/${data.archivedStreamId}/${chatId}`, {
+                        method: "DELETE",
+                    });
+                }}
+            />
+        </details>
+    {/if}
 
     {#if data.user && !data.user.isBanned}
         {#if !data.user.isTrusted}
@@ -378,5 +397,19 @@
     section[role="group"] p {
         margin-top: 1rem;
         color: #888;
+    }
+
+    .chat-history {
+        margin-top: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 0.5rem;
+    }
+
+    .chat-history summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #333;
+        padding: 0.25rem 0;
     }
 </style>

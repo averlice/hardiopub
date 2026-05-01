@@ -25,6 +25,27 @@ export interface ClientsideUser {
     isTrusted: boolean;
 }
 
+export interface ClientsideStream {
+    id: string;
+    title: string;
+    description: string;
+    state: StreamState;
+    peekListeners: number;
+    activeListeners: number;
+    createdAt: number;
+    user?: ClientsideUser;
+    chats?: ClientsideStreamChat[];
+    isStream: true;
+}
+
+export interface ClientsideStreamChat {
+    id: string;
+    content: string;
+    createdAt: number;
+    user: ClientsideUser;
+    stream?: ClientsideStream;
+}
+
 export interface ClientsideAudio {
     id: string;
     title: string;
@@ -67,7 +88,13 @@ export enum NotificationTargetType {
 export enum StreamState {
     pending = "pending",
     active = "active",
+    disconnected = "disconnected",
     finished = "finished",
+}
+
+export enum StreamFormat {
+    aac = "aac",
+    mp3 = "mp3",
 }
 
 export interface ClientsideResolvedNotification {

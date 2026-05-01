@@ -37,7 +37,7 @@
         if (!data.user) return;
         if (document.visibilityState === "hidden") return;
         if (inFlight) return;
-        
+
         try {
             inFlight = true;
             const ctrl = new AbortController();
@@ -50,13 +50,13 @@
             if (!res.ok) throw new Error(String(res.status));
             const body = await res.json();
             unreadCount = Number(body?.unread ?? 0) || 0;
-            
+
             // Reset backoff on success
             backoffMs = 60000;
         } catch (e) {
             backoffMs = Math.min(
                 Math.max(backoffMs * 2, minBackoff),
-                maxBackoff
+                maxBackoff,
             );
         } finally {
             lastFetchTs = Date.now();
@@ -97,11 +97,11 @@
     });
 </script>
 
-<svelte head>
+<svelte:head>
     <title
         >{unreadCount > 0 ? `(${unreadCount}) ` : ""}{$title} | audiopub</title
     >
-</svelte>
+</svelte:head>
 
 <header>
     <nav>
@@ -126,13 +126,19 @@
                     {/if}
                 </a>
                 <a href="/favorites">Favorites</a>
-                <a href="/upload">Upload</a>
                 <a href="/profile">Profile</a>
                 <a href="/logout">Logout</a>
             {/if}
         {:else}
             <a href="/login">Login</a>
             <a href="/register">Register</a>
+        {/if}
+
+        {#if data.user && data.user.isVerified}
+            <div class="action-buttons">
+                <a href="/upload" class="btn-action">Upload</a>
+                <a href="/live/new" class="btn-action btn-live">Go Live</a>
+            </div>
         {/if}
     </nav>
     <form action="/search" method="get">
@@ -205,6 +211,35 @@
         display: inline-block;
         min-width: 1.2rem;
         text-align: center;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+        margin-left: 1rem;
+        padding-left: 1rem;
+        border-left: 2px solid #ccc;
+    }
+
+    .btn-action {
+        padding: 0.4rem 0.8rem;
+        background-color: #333;
+        color: #fff !important;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .btn-action:hover {
+        background-color: #555;
+    }
+
+    .btn-live {
+        background-color: #d9534f;
+    }
+
+    .btn-live:hover {
+        background-color: #c9302c;
     }
 
     main {

@@ -19,6 +19,7 @@
 <script lang="ts">
     import title from "$lib/title";
     import AudioList from "$lib/components/audio_list.svelte";
+    import StreamCard from "$lib/components/stream_card.svelte";
     import type { PageData } from "./$types";
     import { onMount } from "svelte";
 
@@ -58,6 +59,13 @@
 
 <h1>Welcome to Audiopub</h1>
 
+{#if data.streams && data.streams.length > 0}
+        <h2 id="streams-heading">Currently live</h2>
+        {#each data.streams as stream (stream.id)}
+            <StreamCard {stream} />
+        {/each}
+{/if}
+
 <form method="GET" action="/">
     <label for="sort">Sort by:</label>
     <select name="sort" id="sort">
@@ -67,8 +75,9 @@
         <option value="plays" selected={data.sortField === "plays"}
             >Play Count</option
         >
-        <option value="favoriteCount" selected={data.sortField === "favoriteCount"}
-            >Favorite Count</option
+        <option
+            value="favoriteCount"
+            selected={data.sortField === "favoriteCount"}>Favorite Count</option
         >
         <option value="title" selected={data.sortField === "title"}
             >Title</option

@@ -49,10 +49,11 @@ export const actions: Actions = {
             if (userAudioCount >= 1) {
                 return error(
                     403,
-                    "Please wait for your account to be reviewed."
+                    "Please wait for your account to be reviewed.",
                 );
             }
         }
+
         const form = await event.request.formData();
         const file = form.get("file") as File;
         const title = form.get("title") as string;

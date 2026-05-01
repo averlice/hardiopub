@@ -1,7 +1,7 @@
 /*
  * This file is part of the audiopub project.
  *
- * Copyright (C) 2024 the-byte-bender
+ * Copyright (C) 2026 the-byte-bender
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,19 +16,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { handler } from "../build/handler.js";
-import express from "express";
+import { Stream, User, StreamChat, Audio } from "$lib/server/database";
+import { error, redirect } from "@sveltejs/kit";
+import type { PageServerLoad } from "./$types";
 
-const app = express();
+export const load: PageServerLoad = async (event) => {
+    const stream = await Stream.findByPk(event.params.id, {
+        include: [User, StreamChat],
+    });
 
-// add a route that lives separately from the SvelteKit app
-app.get("/healthcheck", (req, res) => {
-    res.end("ok");
-});
+    if (!stream || stream.state === "finished") {
+        return redirect(302, `/listen/${event.params.id}`);
+    }
 
-// let SvelteKit handle everything else, including serving prerendered pages and static assets
-app.use(handler);
-
-app.listen(3000, () => {
-    console.log("listening on port 3000");
-});
+    return {
+        stream: stream.toClientside(true),
+        chats: stream.streamChats?.map((c) => c.toClientside()),
+    };
+};

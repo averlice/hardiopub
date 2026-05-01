@@ -115,6 +115,10 @@ export default class User extends Model {
     @Column(DataType.INTEGER)
     declare version: number;
 
+    @AllowNull(true)
+    @Column(DataType.UUID)
+    declare streamKey: string | null;
+
     @CreatedAt
     declare createdAt: Date;
 

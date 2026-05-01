@@ -16,8 +16,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { Audio, Comment, User } from "$lib/server/database";
+import { Audio, Comment, User, Stream } from "$lib/server/database";
 import { error, redirect } from "@sveltejs/kit";
+import { Op } from "sequelize";
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
@@ -29,13 +30,21 @@ export const load: PageServerLoad = async (event) => {
     if (!profileUser) {
         return redirect(303, "/");
     }
-    const audios = await Audio.findAndCountAll({
-        where: { userId: profileUser.id},
-        limit,
-        offset,
-        order: [["createdAt", "DESC"]],
-    });
+
+    const [audios, activeStream] = await Promise.all([
+        Audio.findAndCountAll({
+            where: { userId: profileUser.id },
+            limit,
+            offset,
+            order: [["createdAt", "DESC"]],
+        }),
+        Stream.findOne({
+            where: { userId: profileUser.id, state: { [Op.ne]: "finished" } },
+        }),
+    ]);
+
     return {
+        stream: activeStream?.toClientside(false) ?? null,
         audios: audios.rows.map((audio) => audio.toClientside()),
         count: audios.count,
         page,
@@ -58,7 +67,7 @@ export const actions: Actions = {
         const reason = form.get("reason") as string;
         const message = form.get("message") as string;
         await userToBeBanned.ban(reason, message);
-        if (!userToBeBanned.isTrusted){
+        if (!userToBeBanned.isTrusted) {
             // Delete all audios and comments of the user.
             await Audio.destroy({ where: { userId: userToBeBanned.id } });
             await Comment.destroy({ where: { userId: userToBeBanned.id } });

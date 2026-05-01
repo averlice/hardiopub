@@ -32,7 +32,7 @@ import {
 } from "sequelize-typescript";
 import User from "./user";
 import StreamChat from "./stream_chat";
-import type { StreamState } from "$lib/types";
+import type { StreamState, ClientsideStream, StreamFormat } from "$lib/types";
 
 @Table
 export default class Stream extends Model {
@@ -71,7 +71,40 @@ export default class Stream extends Model {
     @UpdatedAt
     declare updatedAt: Date;
 
+    @AllowNull(false)
+    @Default(0)
+    @Column(DataType.INTEGER)
+    declare peekListeners: number;
+
+    @AllowNull(false)
+    @Default(0)
+    @Column(DataType.INTEGER)
+    declare activeListeners: number;
+
+    @AllowNull(false)
+    @Default(false)
+    @Column(DataType.BOOLEAN)
+    declare shouldArchive: boolean;
+
+    @AllowNull(true)
+    @Column(DataType.STRING)
+    declare format: StreamFormat | null;
+
     get stateFiltered(): string | null {
         return this.state === "finished" ? null : this.state;
+    }
+
+    toClientside(includeUser: boolean = true): ClientsideStream {
+        return {
+            id: this.id,
+            title: this.title,
+            description: this.description,
+            state: this.state,
+            peekListeners: this.peekListeners,
+            activeListeners: this.activeListeners,
+            createdAt: this.createdAt.getTime(),
+            user: includeUser ? this.user?.toClientside() : undefined,
+            isStream: true as const,
+        };
     }
 }

@@ -19,6 +19,7 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
     import AudioList from "$lib/components/audio_list.svelte";
+    import StreamCard from "$lib/components/stream_card.svelte";
     import title from "$lib/title.js";
     import { onMount } from "svelte";
     export let data;
@@ -76,6 +77,11 @@
 {/if}
 
 <h2>Uploads</h2>
+
+{#if data.stream}
+        <h3 id="stream-heading">Currently Streaming</h3>
+        <StreamCard stream={data.stream} />
+{/if}
 
 <AudioList
     audios={data.audios}

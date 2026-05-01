@@ -31,6 +31,7 @@ import {
 } from "sequelize-typescript";
 import User from "./user";
 import Stream from "./stream";
+import type { ClientsideStreamChat } from "$lib/types";
 
 @Table
 export default class StreamChat extends Model {
@@ -63,4 +64,16 @@ export default class StreamChat extends Model {
 
     @UpdatedAt
     declare updatedAt: Date;
+
+    toClientside(includeStream: boolean = false): ClientsideStreamChat {
+        return {
+            id: this.id,
+            content: this.content,
+            createdAt: this.createdAt.getTime(),
+            user: this.user!.toClientside(),
+            stream: includeStream
+                ? this.stream?.toClientside(false)
+                : undefined,
+        };
+    }
 }
