@@ -64,12 +64,18 @@ export enum NotificationTargetType {
     comment = "comment",
 }
 
+export enum StreamState {
+    pending = "pending",
+    active = "active",
+    finished = "finished",
+}
+
 export interface ClientsideResolvedNotification {
     id: string;
     userId: string | null;
     type: NotificationType;
     targetType: NotificationTargetType;
-    target?: ClientsideAudio | ClientsideComment|null;
+    target?: ClientsideAudio | ClientsideComment | null;
     metadata?: any;
     actor?: ClientsideUser;
     readAt?: number;
