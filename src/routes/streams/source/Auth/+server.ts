@@ -37,6 +37,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Mount is the user ID (strip leading slash)
     const userId = mount.startsWith("/") ? mount.slice(1) : mount;
 
+    console.log(`Auth request for userId=${userId}, admin=${admin}`);
     if (!userId) {
         return new Response(null, {
             status: 401,
@@ -47,13 +48,15 @@ export const POST: RequestHandler = async ({ request }) => {
     const user = await User.findByPk(userId);
 
     if (!user) {
+        console.log(`User not found: ${userId}`);
         return new Response(null, {
             status: 401,
             headers: { "icecast-auth-message": "User not found" },
         });
     }
-
+    console.log(`Found user: ${user.name} (ID: ${user.id})`);
     if (admin && !user.isAdmin) {
+        console.log(`Admin access denied for user: ${user.name} (ID: ${user.id})`);
         return new Response(null, {
             status: 401,
             headers: { "icecast-auth-message": "Admin access denied" },
@@ -61,6 +64,7 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     if (!user.streamKey || pass !== user.streamKey) {
+        console.log(`Invalid stream key for user: ${user.name} (ID: ${user.id})`);
         return new Response(null, {
             status: 401,
             headers: { "icecast-auth-message": "Invalid stream key" },
@@ -89,12 +93,14 @@ export const POST: RequestHandler = async ({ request }) => {
     });
 
     if (!activeStream) {
+        console.log(`No active stream found for user: ${user.name} (ID: ${user.id})`);
         return new Response(null, {
             status: 401,
             headers: { "icecast-auth-message": "No active stream found" },
         });
     }
 
+    console.log(`Stream auth successful for user: ${user.name} (ID: ${user.id}), stream ID: ${activeStream.id}`);
     return new Response(null, {
         status: 200,
         headers: { "icecast-auth-user": "1" },
