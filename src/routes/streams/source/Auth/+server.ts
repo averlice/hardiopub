@@ -26,6 +26,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const formData = await request.formData();
 
     const action = formData.get("action");
+    console.log(`Received auth request with action: ${action}`);
     if (action !== "stream_auth") {
         return json({ error: "Unknown action" }, { status: 400 });
     }
