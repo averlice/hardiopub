@@ -125,7 +125,7 @@ export const load: PageServerLoad = async (event) => {
             page === 1
                 ? (
                       await Stream.findAll({
-                          where: { state: { [Op.ne]: "finished" } },
+                          where: { state: "active" } ,
                           order: [["createdAt", "DESC"]],
                           include: User,
                       })

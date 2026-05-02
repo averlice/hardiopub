@@ -16,13 +16,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { Stream } from "$lib/server/database";
+import { Stream, Audio } from "$lib/server/database";
 import { Op } from "sequelize";
 import { EventEmitter } from "node:events";
 import type { ClientsideStreamChat } from "$lib/types";
+import { StreamState } from "$lib/types";
 
 export class StreamingService extends EventEmitter {
     private pollIntervalMs: number;
+    private icecastHost: string = "";
+    private icecastAdminUser: string = "";
+    private icecastAdminPassword: string = "";
     private timer: ReturnType<typeof setInterval> | null = null;
 
     constructor(pollIntervalMs: number = 5 * 60 * 1000) {
@@ -44,9 +48,58 @@ export class StreamingService extends EventEmitter {
         } as StreamChatDeletedEvent);
     }
 
-    endStream(stream: Stream) {
-        const oldState = stream.state;
-        if (oldState === "finished") return;
+    async endStream(streamId: string) {
+        const pendingDeleted = await Stream.destroy({
+            where: { id: streamId, state: StreamState.pending },
+        });
+        if (pendingDeleted > 0) {
+            this.emit(STREAM_STATE_CHANGED, {
+                streamId,
+                oldState: StreamState.pending,
+                newState: "destroyed",
+            } as StreamStateChangedEvent);
+            return;
+        }
+
+        await Stream.update(
+            { state: StreamState.finished },
+            {
+                where: {
+                    id: streamId,
+                    state: { [Op.ne]: StreamState.finished },
+                },
+            },
+        );
+
+        const updatedStream = await Stream.findByPk(streamId);
+        if (!updatedStream) return; // Already finished
+
+        this.emit(STREAM_STATE_CHANGED, {
+            streamId,
+            oldState: updatedStream.state,
+            newState: StreamState.finished,
+        } as StreamStateChangedEvent);
+
+        if (updatedStream.shouldArchive && updatedStream.format) {
+            const audio = await Audio.create({
+                id: updatedStream.id,
+                title: updatedStream.title,
+                description: updatedStream.description,
+                extension: updatedStream.format,
+                hasFile: false,
+                isFromAi: false,
+                userId: updatedStream.userId,
+                plays: updatedStream.peekListeners,
+                archivedStreamId: updatedStream.id,
+            });
+
+            this.emit(STREAM_ARCHIVED, {
+                streamId: updatedStream.id,
+                audioId: audio.id,
+            } as StreamArchivedEvent);
+        } else {
+            await updatedStream.destroy();
+        }
     }
 
     async poll() {
@@ -63,7 +116,10 @@ export class StreamingService extends EventEmitter {
         }
     }
 
-    start() {
+    start(icecast: { host: string; adminUser: string; adminPassword: string }) {
+        icecast.host = this.icecastHost;
+        icecast.adminUser = this.icecastAdminUser;
+        icecast.adminPassword = this.icecastAdminPassword;
         console.log("Starting streaming service...");
         this.poll();
         this.timer = setInterval(() => this.poll(), this.pollIntervalMs);
@@ -89,6 +145,7 @@ export const streamingService = new StreamingService();
 export const STREAM_STATE_CHANGED = "stream:state_changed";
 export const STREAM_CHAT_SENT = "stream:chat_sent";
 export const STREAM_CHAT_DELETED = "stream:chat_deleted";
+export const STREAM_ARCHIVED = "stream:archived";
 
 export interface StreamEvent {
     streamId: string;
@@ -105,4 +162,8 @@ export interface StreamChatSentEvent extends StreamEvent {
 
 export interface StreamChatDeletedEvent extends StreamEvent {
     chatId: string;
+}
+
+export interface StreamArchivedEvent extends StreamEvent {
+    audioId: string;
 }

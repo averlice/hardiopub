@@ -23,7 +23,21 @@ import { streamingService } from "$lib/server/streaming";
 import dotenv from "dotenv";
 dotenv.config();
 
-streamingService.start();
+if (
+    !process.env.ICECAST_HOST ||
+    !process.env.ICECAST_ADMIN_USER ||
+    !process.env.ICECAST_ADMIN_PASSWORD
+) {
+    throw new Error(
+        "One or more required environment variables for ICECAST are not defined",
+    );
+}
+
+streamingService.start({
+    host: process.env.ICECAST_HOST,
+    adminUser: process.env.ICECAST_ADMIN_USER,
+    adminPassword: process.env.ICECAST_ADMIN_PASSWORD,
+});
 
 process.on("sveltekit:shutdown", () => {
     streamingService.stopGracefulShutdown();
