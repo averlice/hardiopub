@@ -38,7 +38,7 @@
 </script>
 
 <article class="chat-message">
-    <header class="chat-header">
+    <header class="chat-header" role="heading" aria-level="3">
         <a href="/user/{chat.user.id}" class="username"
             >{chat.user.displayName}</a
         >

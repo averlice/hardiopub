@@ -16,32 +16,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { json, error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { StreamChat, Stream } from "$lib/server/database";
+import { Stream } from "$lib/server/database";
+import { StreamState } from "$lib/types";
 import { streamingService } from "$lib/server/streaming";
 
-export const DELETE: RequestHandler = async (event) => {
-    const user = event.locals.user;
-    const chatId = event.params.chatId;
+export const POST: RequestHandler = async ({ request }) => {
+    const formData = await request.formData();
 
-    if (!chatId) {
-        return json({ error: "Missing chat ID" }, { status: 400 });
+    const action = formData.get("action");
+    if (action !== "mount_remove") {
+        return new Response(null, { status: 400 });
     }
 
-    const chat = await StreamChat.findByPk(chatId, { include: Stream });
-    if (!chat) {
-        return json({ error: "Not found" }, { status: 404 });
+    const mount = formData.get("mount") as string;
+    const userId = mount.startsWith("/") ? mount.slice(1) : mount;
+
+    if (!userId) {
+        return new Response(null, { status: 400 });
     }
 
-    const stream = chat.stream!;
-    const isOwnerOrAdmin = user && (user.id === stream?.userId || user.isAdmin);
+    const stream = await Stream.findOne({
+        where: {
+            userId,
+            state: StreamState.active,
+        },
+    });
 
-    if (!user || (!isOwnerOrAdmin && user.id !== chat.userId)) {
-        return json({ error: "Forbidden" }, { status: 403 });
+    if (stream) {
+        await streamingService.sourceDisconnected(stream.id);
     }
 
-    await chat.destroy();
-    streamingService.notifyChatDeleted(stream.id, chat.id);
-    return json({ success: true });
+    return new Response(null, { status: 204 });
 };

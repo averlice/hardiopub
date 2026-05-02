@@ -21,6 +21,7 @@
 
     import { onMount } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
+    import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import { enhance } from "$app/forms";
     import title from "$lib/title";
@@ -29,26 +30,153 @@
 
     $: isOwnerOrAdmin =
         data.user && (data.user.id === data.stream.user?.id || data.isAdmin);
+
+    let audioEl: HTMLAudioElement;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let retryInterval: ReturnType<typeof setInterval> | null = null;
+    let retryCount = 0;
+    let streamEnded = false;
+
+    let activeListeners = data.stream.activeListeners;
+    let peekListeners = data.stream.peekListeners;
+
+    let chats = (data.chats ?? []) as ClientsideStreamChat[];
+    let eventSource: EventSource | null = null;
+
+    const MAX_RETRIES = 120;
+
+    function connectSSE() {
+        eventSource = new EventSource(`/live/${data.stream.id}/events`);
+
+        eventSource.addEventListener("listeners", (e) => {
+            const d = JSON.parse(e.data);
+            activeListeners = d.activeListeners;
+            peekListeners = d.peekListeners;
+        });
+
+        eventSource.addEventListener("state", (e) => {
+            const d = JSON.parse(e.data);
+            if (d.state === "finished") {
+                stopRetrying();
+                streamEnded = true;
+                eventSource?.close();
+            }
+        });
+
+        eventSource.addEventListener("archived", () => {
+            stopRetrying();
+            streamEnded = true;
+            eventSource?.close();
+            window.location.href = `/listen/${data.stream.id}`;
+        });
+
+        eventSource.addEventListener("chat", (e) => {
+            const chat = JSON.parse(e.data) as ClientsideStreamChat;
+            chats = [...chats.filter((c) => c.id !== chat.id), chat];
+        });
+
+        eventSource.addEventListener("chat_delete", (e) => {
+            const { chatId } = JSON.parse(e.data);
+            chats = chats.filter((c) => c.id !== chatId);
+        });
+
+        eventSource.onerror = () => {
+            if (eventSource?.readyState === EventSource.CLOSED) {
+                stopRetrying();
+                streamEnded = true;
+                eventSource = null;
+            }
+            // Otherwise EventSource is retrying automatically
+        };
+    }
+
+    function startRetrying() {
+        if (retryInterval) return;
+        retryCount = 0;
+
+        retryInterval = setInterval(() => {
+            audioEl?.load();
+            retryCount++;
+            if (retryCount >= MAX_RETRIES) {
+                clearInterval(retryInterval ?? undefined);
+                retryInterval = null;
+                streamEnded = true;
+            }
+        }, 5000);
+
+        retryTimeout = setTimeout(
+            () => {
+                clearInterval(retryInterval ?? undefined);
+                retryInterval = null;
+                streamEnded = true;
+            },
+            10 * 60 * 1000,
+        );
+    }
+
+    function stopRetrying() {
+        clearTimeout(retryTimeout ?? undefined);
+        clearInterval(retryInterval ?? undefined);
+        retryInterval = null;
+        retryTimeout = null;
+        streamEnded = true;
+        retryCount = 0;
+    }
+
+    function handleSendMessage(content: string) {
+        fetch(`/live/${data.stream.id}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+        });
+    }
+
+    function handleDeleteChat(chatId: string) {
+        fetch(`/live/${data.stream.id}/${chatId}`, { method: "DELETE" });
+    }
+
+    function handleEndStream() {
+        fetch(`/live/${data.stream.id}`, { method: "DELETE" });
+    }
+
+    onMount(() => {
+        connectSSE();
+        return () => {
+            stopRetrying();
+            eventSource?.close();
+        };
+    });
 </script>
 
 <h1>{data.stream.title}</h1>
 
 <div class="stream-player">
-    <audio controls id="player" autoplay>
-        <source src="https://live.audiopub.site/{data.stream.user?.id}" />
-        <p>Your browser doesn't support the audio element.</p>
-    </audio>
+    {#if streamEnded}
+        <p class="stream-ended">
+            Stream has ended or is temporarily unavailable.
+        </p>
+    {:else}
+        <audio
+            controls
+            id="player"
+            autoplay
+            bind:this={audioEl}
+            on:error={startRetrying}
+        >
+            <source src="https://live.audiopub.site/{data.stream.user?.id}" />
+            <p>Your browser doesn't support the audio element.</p>
+        </audio>
+    {/if}
 </div>
 
 <div class="stream-details">
     <div class="stream-stats">
         <span>
-            <strong>{data.stream.activeListeners}</strong> listener{data.stream
-                .activeListeners === 1
+            <strong>{activeListeners}</strong> listener{activeListeners === 1
                 ? ""
                 : "s"}
         </span>
-        <span>Peak: {data.stream.peekListeners}</span>
+        <span>Peak: {peekListeners}</span>
     </div>
 
     {#if data.stream.user}
@@ -62,7 +190,9 @@
     <p>Started: {new Date(data.stream.createdAt).toLocaleString()}</p>
 
     {#if isOwnerOrAdmin}
-        <button class="end-stream-button">End Stream</button>
+        <button class="end-stream-button" on:click={handleEndStream}>
+            End Stream
+        </button>
     {/if}
 
     {#if data.stream.description}
@@ -73,13 +203,12 @@
 
 <StreamChatList
     streamId={data.stream.id}
-    chats={data.chats}
+    {chats}
     user={data.user}
     isAdmin={data.isAdmin}
-    onDelete={(chatId) => {
-        fetch(`/live/${data.stream.id}/${chatId}`, { method: "DELETE" });
-    }}
+    onDelete={handleDeleteChat}
     streamOwnerId={data.stream.user?.id ?? null}
+    onSendMessage={handleSendMessage}
 />
 
 <style>
@@ -96,6 +225,15 @@
     .stream-player audio {
         width: 100%;
         margin-bottom: 0.5rem;
+    }
+
+    .stream-ended {
+        padding: 1rem;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        color: #721c24;
+        text-align: center;
     }
 
     .stream-details {

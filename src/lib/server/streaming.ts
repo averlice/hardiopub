@@ -48,16 +48,46 @@ export class StreamingService extends EventEmitter {
         } as StreamChatDeletedEvent);
     }
 
+    notifyStateChanged(
+        streamId: string,
+        oldState: StreamState,
+        newState: StreamState,
+    ) {
+        this.emit(STREAM_STATE_CHANGED, {
+            streamId,
+            oldState,
+            newState,
+        } as StreamStateChangedEvent);
+    }
+
+    notifyListenersChanged(
+        streamId: string,
+        activeListeners: number,
+        peekListeners: number,
+    ) {
+        this.emit(STREAM_LISTENERS_CHANGED, {
+            streamId,
+            activeListeners,
+            peekListeners,
+        } as StreamListenersChangedEvent);
+    }
+
+    notifyDestroyed(
+        streamId: string,
+        reason: "pending_expired" | "owner_ended",
+    ) {
+        this.emit(STREAM_DESTROYED, {
+            streamId,
+            reason,
+        } as StreamDestroyedEvent);
+    }
+
     async endStream(streamId: string) {
         const pendingDeleted = await Stream.destroy({
             where: { id: streamId, state: StreamState.pending },
         });
         if (pendingDeleted > 0) {
-            this.emit(STREAM_STATE_CHANGED, {
-                streamId,
-                oldState: StreamState.pending,
-                newState: "destroyed",
-            } as StreamStateChangedEvent);
+            this.notifyDestroyed(streamId, "owner_ended");
             return;
         }
 
@@ -74,11 +104,11 @@ export class StreamingService extends EventEmitter {
         const updatedStream = await Stream.findByPk(streamId);
         if (!updatedStream) return; // Already finished
 
-        this.emit(STREAM_STATE_CHANGED, {
-            streamId,
-            oldState: updatedStream.state,
-            newState: StreamState.finished,
-        } as StreamStateChangedEvent);
+        this.notifyStateChanged(
+            updatedStream.id,
+            updatedStream.state,
+            StreamState.finished,
+        );
 
         if (updatedStream.shouldArchive && updatedStream.format) {
             const audio = await Audio.create({
@@ -105,14 +135,196 @@ export class StreamingService extends EventEmitter {
     async poll() {
         try {
             const cutoff = new Date(Date.now() - this.pollIntervalMs);
-            await Stream.destroy({
+
+            const expiredPending = await Stream.findAll({
                 where: {
-                    state: "pending",
+                    state: StreamState.pending,
                     createdAt: { [Op.lt]: cutoff },
                 },
             });
+            for (const stream of expiredPending) {
+                await stream.destroy();
+                this.notifyDestroyed(stream.id, "pending_expired");
+            }
+
+            const expiredDisconnected = await Stream.findAll({
+                where: {
+                    state: StreamState.disconnected,
+                    disconnectedAt: { [Op.ne]: null, [Op.lt]: cutoff },
+                },
+            });
+            for (const stream of expiredDisconnected) {
+                await this.endStream(stream.id);
+            }
         } catch {
             // Swallow errors. This runs in the background and should not crash the process
+        }
+    }
+
+    async sourceConnected(streamId: string) {
+        const stream = await Stream.findByPk(streamId);
+        if (!stream) return;
+
+        const oldState = stream.state;
+        const isPendingOrDisconnected =
+            oldState === StreamState.pending ||
+            oldState === StreamState.disconnected;
+        if (!isPendingOrDisconnected) return;
+
+        const [updated] = await Stream.update(
+            { state: StreamState.active },
+            {
+                where: { id: streamId, state: oldState },
+            },
+        );
+
+        if (updated) {
+            this.notifyStateChanged(streamId, oldState, StreamState.active);
+        }
+    }
+
+    async sourceDisconnected(streamId: string) {
+        const stream = await Stream.findByPk(streamId);
+        if (!stream) return;
+
+        const oldState = stream.state;
+        if (oldState !== StreamState.active) return;
+
+        const [updated] = await Stream.update(
+            { state: StreamState.disconnected, disconnectedAt: new Date() },
+            {
+                where: { id: streamId, state: StreamState.active },
+            },
+        );
+
+        if (updated) {
+            this.notifyStateChanged(
+                streamId,
+                oldState,
+                StreamState.disconnected,
+            );
+        }
+    }
+
+    async listenerConnected(streamId: string) {
+        await Stream.update(
+            {
+                activeListeners: Stream.sequelize!.literal(
+                    "activeListeners + 1",
+                ),
+                peekListeners: Stream.sequelize!.literal(
+                    "GREATEST(peekListeners, activeListeners + 1)",
+                ),
+            },
+            { where: { id: streamId } },
+        );
+
+        const updated = await Stream.findByPk(streamId, {
+            attributes: ["activeListeners", "peekListeners"],
+        });
+        if (!updated) return;
+
+        this.notifyListenersChanged(
+            streamId,
+            updated.activeListeners,
+            updated.peekListeners,
+        );
+    }
+
+    async listenerDisconnected(streamId: string) {
+        const [updated] = await Stream.update(
+            {
+                activeListeners: Stream.sequelize!.literal(
+                    "activeListeners - 1",
+                ),
+            },
+            {
+                where: { id: streamId, activeListeners: { [Op.gt]: 0 } },
+            },
+        );
+
+        if (updated) {
+            const updatedStream = await Stream.findByPk(streamId, {
+                attributes: ["activeListeners", "peekListeners"],
+            });
+            if (updatedStream) {
+                this.notifyListenersChanged(
+                    streamId,
+                    updatedStream.activeListeners,
+                    updatedStream.peekListeners,
+                );
+            }
+        }
+    }
+
+    async disconnectSource(userId: string) {
+        const url = `http://${this.icecastHost}/admin/killsource?mount=/${userId}`;
+        const auth = Buffer.from(
+            `${this.icecastAdminUser}:${this.icecastAdminPassword}`,
+        ).toString("base64");
+
+        await fetch(url, {
+            method: "GET",
+            headers: {
+                Authorization: `Basic ${auth}`,
+            },
+        });
+    }
+
+    private async fetchMounts(): Promise<string[]> {
+        if (!this.icecastHost) return [];
+
+        const url = `http://${this.icecastHost}/admin/listmounts`;
+        const auth = Buffer.from(
+            `${this.icecastAdminUser}:${this.icecastAdminPassword}`,
+        ).toString("base64");
+
+        try {
+            const res = await fetch(url, {
+                headers: { Authorization: `Basic ${auth}` },
+            });
+            const text = await res.text();
+
+            const mounts: string[] = [];
+            const matches = text.matchAll(/<source mount="([^"]+)"/g);
+            for (const match of matches) {
+                // Strip leading slash to get userId
+                mounts.push(
+                    match[1].startsWith("/") ? match[1].slice(1) : match[1],
+                );
+            }
+            return mounts;
+        } catch {
+            return [];
+        }
+    }
+
+    async syncStreams() {
+        const mounts = await this.fetchMounts();
+        const mountSet = new Set(mounts);
+
+        // Find active streams whose user has no mount → mark disconnected
+        const activeStreams = await Stream.findAll({
+            where: { state: StreamState.active },
+        });
+        for (const stream of activeStreams) {
+            if (!mountSet.has(stream.userId)) {
+                await this.sourceDisconnected(stream.id);
+            }
+        }
+
+        // Find pending/disconnected streams whose user has a mount → mark active
+        const inactiveStreams = await Stream.findAll({
+            where: {
+                state: {
+                    [Op.in]: [StreamState.pending, StreamState.disconnected],
+                },
+            },
+        });
+        for (const stream of inactiveStreams) {
+            if (mountSet.has(stream.userId)) {
+                await this.sourceConnected(stream.id);
+            }
         }
     }
 
@@ -121,6 +333,7 @@ export class StreamingService extends EventEmitter {
         icecast.adminUser = this.icecastAdminUser;
         icecast.adminPassword = this.icecastAdminPassword;
         console.log("Starting streaming service...");
+        this.syncStreams();
         this.poll();
         this.timer = setInterval(() => this.poll(), this.pollIntervalMs);
         console.log(
@@ -146,14 +359,16 @@ export const STREAM_STATE_CHANGED = "stream:state_changed";
 export const STREAM_CHAT_SENT = "stream:chat_sent";
 export const STREAM_CHAT_DELETED = "stream:chat_deleted";
 export const STREAM_ARCHIVED = "stream:archived";
+export const STREAM_DESTROYED = "stream:destroyed";
+export const STREAM_LISTENERS_CHANGED = "stream:listeners_changed";
 
 export interface StreamEvent {
     streamId: string;
 }
 
 export interface StreamStateChangedEvent extends StreamEvent {
-    oldState: string;
-    newState: string;
+    oldState: StreamState;
+    newState: StreamState;
 }
 
 export interface StreamChatSentEvent extends StreamEvent {
@@ -164,6 +379,15 @@ export interface StreamChatDeletedEvent extends StreamEvent {
     chatId: string;
 }
 
+export interface StreamListenersChangedEvent extends StreamEvent {
+    activeListeners: number;
+    peekListeners: number;
+}
+
 export interface StreamArchivedEvent extends StreamEvent {
     audioId: string;
+}
+
+export interface StreamDestroyedEvent extends StreamEvent {
+    reason: "pending_expired" | "owner_ended";
 }

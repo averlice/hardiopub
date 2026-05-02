@@ -27,6 +27,14 @@
     export let isAdmin: boolean = false;
     export let onDelete: ((chatId: string) => void) | null = null;
     export let streamOwnerId: string | null = null;
+
+    let messageText = "";
+    function submitChat() {
+        const text = messageText.trim();
+        if (!text || !onSendMessage) return;
+        onSendMessage(text);
+        messageText = "";
+    }
 </script>
 
 <section role="group" aria-label="Live Chat" class="chat-section">
@@ -47,12 +55,13 @@
     </div>
 
     {#if onSendMessage && user && !user.isBanned && user.isTrusted}
-        <form class="chat-form" on:submit|preventDefault>
+        <form class="chat-form" on:submit|preventDefault={submitChat}>
             <label for="chat-input-{streamId}">Send a message:</label>
             <textarea
                 id="chat-input-{streamId}"
                 placeholder="Type your message here..."
                 maxlength="1024"
+                bind:value={messageText}
             ></textarea>
             <button type="submit">Send</button>
         </form>

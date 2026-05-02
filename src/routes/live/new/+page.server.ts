@@ -21,6 +21,7 @@ import type { PageServerLoad, Actions } from "./$types";
 import { Stream } from "$lib/server/database";
 import { StreamState } from "$lib/types";
 import { v4 as uuidv4 } from "uuid";
+import { Op } from "sequelize";
 
 export const load: PageServerLoad = async (event) => {
     const user = event.locals.user;
@@ -28,11 +29,10 @@ export const load: PageServerLoad = async (event) => {
         return redirect(303, "/login");
     }
 
-    // Prevent creating a new stream if user already has an active one
     const existingStream = await Stream.findOne({
         where: {
             userId: user.id,
-            state: StreamState.pending,
+            state: { [Op.ne]: StreamState.finished },
         },
     });
 
@@ -58,11 +58,10 @@ export const actions: Actions = {
             return error(403, "You are banned");
         }
 
-        // Double-check: prevent creating multiple active streams
         const existingStream = await Stream.findOne({
             where: {
                 userId: user.id,
-                state: StreamState.pending,
+                state: { [Op.ne]: StreamState.finished },
             },
         });
 

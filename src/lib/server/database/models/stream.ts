@@ -87,6 +87,10 @@ export default class Stream extends Model {
     declare shouldArchive: boolean;
 
     @AllowNull(true)
+    @Column(DataType.DATE)
+    declare disconnectedAt: Date | null;
+
+    @AllowNull(true)
     @Column(DataType.STRING)
     declare format: StreamFormat | null;
 

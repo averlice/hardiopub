@@ -60,6 +60,24 @@
     <button type="submit">Update</button>
 </form>
 
+<section class="stream-key-section">
+    <h2>Stream Key</h2>
+    <p class="stream-key-display">
+        {data.streamKey ?? "No stream key set"}
+    </p>
+    {#if data.streamKey}
+        <button
+            type="button"
+            class="copy-key-btn"
+            on:click={() => navigator.clipboard.writeText(data.streamKey ?? "")}
+            >Copy</button
+        >
+    {/if}
+    <form use:enhance method="POST" action="?/resetStreamKey">
+        <button type="submit" class="reset-key-btn">Reset Stream Key</button>
+    </form>
+</section>
+
 <h2>Your Uploads</h2>
 
 <AudioList
@@ -109,5 +127,35 @@
 
     button:hover {
         background-color: #444;
+    }
+
+    .stream-key-section {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid #ccc;
+    }
+
+    .stream-key-display {
+        font-family: monospace;
+        background: #f5f5f5;
+        padding: 0.5rem;
+        border-radius: 4px;
+        word-break: break-all;
+    }
+
+    .reset-key-btn {
+        background-color: #c0392b;
+    }
+
+    .reset-key-btn:hover {
+        background-color: #a93226;
+    }
+
+    .copy-key-btn {
+        background-color: #2980b9;
+    }
+
+    .copy-key-btn:hover {
+        background-color: #2471a3;
     }
 </style>
