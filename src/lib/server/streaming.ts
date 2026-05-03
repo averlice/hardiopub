@@ -21,10 +21,16 @@ import { promisify } from "node:util";
 import { Stream, Audio } from "$lib/server/database";
 import { Op } from "sequelize";
 import { EventEmitter } from "node:events";
+import * as fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
 import type { ClientsideStreamChat } from "$lib/types";
 import { StreamState, StreamFormat } from "$lib/types";
 
 const execFileAsync = promisify(execFile);
+
+const STREAM_ARCHIVE_DIR = path.join(os.tmpdir(), "audiopub-streams");
+const STREAM_ARCHIVE_MAX_BYTES = 750 * 1024 * 1024;
 
 export class StreamingService extends EventEmitter {
     private pollIntervalMs: number;
@@ -32,6 +38,7 @@ export class StreamingService extends EventEmitter {
     private icecastAdminUser: string = "";
     private icecastAdminPassword: string = "";
     private timer: ReturnType<typeof setInterval> | null = null;
+    private archiveControllers: Map<string, AbortController> = new Map();
 
     constructor(pollIntervalMs: number = 5 * 60 * 1000) {
         super();
@@ -116,12 +123,24 @@ export class StreamingService extends EventEmitter {
         );
 
         if (updatedStream.shouldArchive && updatedStream.format) {
+            await this.stopArchiving(updatedStream.id);
+            const archivePath = path.join(STREAM_ARCHIVE_DIR, updatedStream.id);
+            const audioDestPath = path.join(
+                process.cwd(),
+                "audio",
+                updatedStream.id,
+            );
+            try {
+                await fs.rename(archivePath, audioDestPath);
+            } catch {
+                // File may not exist or already moved
+            }
             const audio = await Audio.create({
                 id: updatedStream.id,
                 title: updatedStream.title,
                 description: updatedStream.description,
                 extension: updatedStream.format,
-                hasFile: false,
+                hasFile: true,
                 isFromAi: false,
                 userId: updatedStream.userId,
                 plays: updatedStream.peekListeners,
@@ -215,6 +234,57 @@ export class StreamingService extends EventEmitter {
         return { format, codec, contentType };
     }
 
+    private async startArchiving(stream: Stream): Promise<void> {
+        if (!stream.shouldArchive) return;
+
+        const archivePath = path.join(STREAM_ARCHIVE_DIR, stream.id);
+        await fs.mkdir(STREAM_ARCHIVE_DIR, { recursive: true });
+
+        const controller = new AbortController();
+        this.archiveControllers.set(stream.id, controller);
+
+        const url = `http://${this.icecastHost}/${stream.userId}`;
+
+        (async () => {
+            try {
+                const res = await fetch(url, { signal: controller.signal });
+                if (!res.ok || !res.body) return;
+
+                const fileHandle = await fs.open(archivePath, "a");
+                let fileSize = 0;
+
+                const stat = await fs.stat(archivePath).catch(() => null);
+                fileSize = stat?.size ?? 0;
+
+                const reader = res.body.getReader();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (fileSize + value.length > STREAM_ARCHIVE_MAX_BYTES) {
+                        break;
+                    }
+                    await fileHandle.appendFile(value);
+                    fileSize += value.length;
+                }
+                await reader.cancel();
+                await fileHandle.close();
+            } catch (err) {
+                if (err instanceof Error && err.name === "AbortError") return;
+                console.error("Error while archiving stream:", err);
+            } finally {
+                this.archiveControllers.delete(stream.id);
+            }
+        })();
+    }
+
+    private stopArchiving(streamId: string): void {
+        const controller = this.archiveControllers.get(streamId);
+        if (controller) {
+            controller.abort();
+            this.archiveControllers.delete(streamId);
+        }
+    }
+
     async sourceConnected(streamId: string) {
         const stream = await Stream.findByPk(streamId);
         if (!stream) return;
@@ -225,8 +295,13 @@ export class StreamingService extends EventEmitter {
             oldState === StreamState.disconnected;
         if (!isPendingOrDisconnected) return;
 
+        if (stream.shouldArchive) {
+            await this.startArchiving(stream);
+        }
+
         const probe = await this.probeStream(stream);
         if (!probe) {
+            await this.stopArchiving(stream.id);
             await this.disconnectSource(stream.userId);
             return;
         }
@@ -252,6 +327,7 @@ export class StreamingService extends EventEmitter {
             actualContentType &&
             !actualContentType.toLowerCase().startsWith(expectedContentType)
         ) {
+            await this.stopArchiving(stream.id);
             await this.disconnectSource(stream.userId);
             return;
         }
@@ -272,6 +348,8 @@ export class StreamingService extends EventEmitter {
     }
 
     async sourceDisconnected(streamId: string) {
+        await this.stopArchiving(streamId);
+
         const stream = await Stream.findByPk(streamId);
         if (!stream) return;
 
