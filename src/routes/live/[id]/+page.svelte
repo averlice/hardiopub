@@ -17,9 +17,7 @@
   along with this program. If not, see <https://www.gnu.org/licenses/>.
 -->
 <script lang="ts">
-    export let data;
-
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
     import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
@@ -27,6 +25,8 @@
     import title from "$lib/title";
 
     onMount(() => title.set(data.stream.title));
+
+    export let data;
 
     $: isOwnerOrAdmin =
         data.user && (data.user.id === data.stream.user?.id || data.isAdmin);
@@ -141,6 +141,7 @@
 
     onMount(() => {
         connectSSE();
+        tick().then(() => audioEl?.load());
         return () => {
             stopRetrying();
             eventSource?.close();
