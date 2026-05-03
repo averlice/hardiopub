@@ -130,11 +130,28 @@ export class StreamingService extends EventEmitter {
                 "audio",
                 updatedStream.id,
             );
+
+            const outputFormat =
+                updatedStream.format === StreamFormat.mp3 ? "mp3" : "adts";
+
             try {
-                await fs.rename(archivePath, audioDestPath);
-            } catch {
-                // File may not exist or already moved
+                await execFileAsync("ffmpeg", [
+                    "-y",
+                    "-i",
+                    archivePath,
+                    "-c",
+                    "copy",
+                    "-f",
+                    outputFormat,
+                    "-loglevel",
+                    "quiet",
+                    audioDestPath,
+                ]);
+            } catch (err){
+                console.error("Error while processing archived stream with ffmpeg:", err);
+                return;
             }
+
             const audio = await Audio.create({
                 id: updatedStream.id,
                 title: updatedStream.title,
@@ -440,8 +457,7 @@ export class StreamingService extends EventEmitter {
                     Authorization: `Basic ${auth}`,
                 },
             });
-        } catch {
-        }
+        } catch {}
     }
 
     private async fetchMounts(): Promise<string[]> {
