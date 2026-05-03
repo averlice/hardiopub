@@ -518,11 +518,15 @@ export class StreamingService extends EventEmitter {
         }
     }
 
-    start(icecast: { host: string; adminUser: string; adminPassword: string }) {
+    async start(icecast: { host: string; adminUser: string; adminPassword: string }) {
         this.icecastHost = icecast.host;
         this.icecastAdminUser = icecast.adminUser;
         this.icecastAdminPassword = icecast.adminPassword;
         console.log("Starting streaming service...");
+        await Stream.update(
+            { activeListeners: 0 },
+            { where: { state: { [Op.ne]: StreamState.finished } } },
+        );
         this.syncStreams();
         this.poll();
         this.timer = setInterval(() => this.poll(), this.pollIntervalMs);
