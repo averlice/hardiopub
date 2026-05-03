@@ -19,13 +19,14 @@
 <script lang="ts">
     export let data;
 
-    import { onMount } from "svelte";
+    import { onMount, tick } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
     import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import { fade, slide } from "svelte/transition";
     import { enhance } from "$app/forms";
     import title from "$lib/title";
+    import IcecastMetadataPlayer from "icecast-metadata-player";
 
     onMount(() => title.set(data.stream.title));
 
@@ -33,19 +34,15 @@
         data.user && (data.user.id === data.stream.user?.id || data.isAdmin);
 
     let audioEl: HTMLAudioElement;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let retryInterval: ReturnType<typeof setInterval> | null = null;
-    let retryCount = 0;
     let streamEnded = false;
     let isPlaying = false;
+    let player: IcecastMetadataPlayer | null = null;
 
     let activeListeners = data.stream.activeListeners;
     let peekListeners = data.stream.peekListeners;
 
     let chats = (data.chats ?? []) as ClientsideStreamChat[];
     let eventSource: EventSource | null = null;
-
-    const MAX_RETRIES = 120;
 
     function connectSSE() {
         eventSource = new EventSource(`/live/${data.stream.id}/events`);
@@ -59,15 +56,15 @@
         eventSource.addEventListener("state", (e) => {
             const d = JSON.parse(e.data);
             if (d.state === "finished") {
-                stopRetrying();
                 streamEnded = true;
+                player?.stop();
                 eventSource?.close();
             }
         });
 
         eventSource.addEventListener("archived", () => {
-            stopRetrying();
             streamEnded = true;
+            player?.stop();
             eventSource?.close();
             window.location.href = `/listen/${data.stream.id}`;
         });
@@ -84,45 +81,16 @@
 
         eventSource.onerror = () => {
             if (eventSource?.readyState === EventSource.CLOSED) {
-                stopRetrying();
                 streamEnded = true;
+                player?.stop();
                 eventSource = null;
             }
             // Otherwise EventSource is retrying automatically
         };
     }
 
-    function startRetrying() {
-        if (retryInterval) return;
-        retryCount = 0;
-
-        retryInterval = setInterval(() => {
-            audioEl?.load();
-            retryCount++;
-            if (retryCount >= MAX_RETRIES) {
-                clearInterval(retryInterval ?? undefined);
-                retryInterval = null;
-                streamEnded = true;
-            }
-        }, 5000);
-
-        retryTimeout = setTimeout(
-            () => {
-                clearInterval(retryInterval ?? undefined);
-                retryInterval = null;
-                streamEnded = true;
-            },
-            10 * 60 * 1000,
-        );
-    }
-
-    function stopRetrying() {
-        clearTimeout(retryTimeout ?? undefined);
-        clearInterval(retryInterval ?? undefined);
-        retryInterval = null;
-        retryTimeout = null;
-        streamEnded = true;
-        retryCount = 0;
+    function handleEndStream() {
+        fetch(`/live/${data.stream.id}`, { method: "DELETE" });
     }
 
     function handleSendMessage(content: string) {
@@ -137,14 +105,31 @@
         fetch(`/live/${data.stream.id}/${chatId}`, { method: "DELETE" });
     }
 
-    function handleEndStream() {
-        fetch(`/live/${data.stream.id}`, { method: "DELETE" });
+    async function handlePlay() {
+        isPlaying = true;
+        await tick();
+        player = new IcecastMetadataPlayer(
+            `https://live.audiopub.site/${data.stream.user?.id}`,
+            {
+                audioElement: audioEl,
+                metadataTypes: [],
+                onRetryTimeout: () => {
+                    streamEnded = true;
+                    player?.stop();
+                },
+                onStreamEnd: () => {
+                    streamEnded = true;
+                },
+            },
+        );
+        player.play();
     }
 
     onMount(() => {
         connectSSE();
         return () => {
-            stopRetrying();
+            player?.stop();
+            player?.detachAudioElement();
             eventSource?.close();
         };
     });
@@ -160,21 +145,14 @@
     {:else if !isPlaying}
         <button
             class="play-button"
-            on:click={() => (isPlaying = true)}
+            on:click={handlePlay}
             transition:fade={{ duration: 200 }}
         >
             Play
         </button>
     {:else}
         <div transition:slide={{ duration: 300 }}>
-            <audio
-                controls
-                id="player"
-                bind:this={audioEl}
-                on:error={startRetrying}
-                autoplay
-                src="https://live.audiopub.site/{data.stream.user?.id}"
-            >
+            <audio controls id="player" bind:this={audioEl}>
                 <p>Your browser doesn't support the audio element.</p>
             </audio>
         </div>
