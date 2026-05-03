@@ -147,8 +147,12 @@ export class StreamingService extends EventEmitter {
                     "quiet",
                     audioDestPath,
                 ]);
-            } catch (err){
-                console.error("Error while processing archived stream with ffmpeg:", err);
+                await fs.unlink(archivePath);
+            } catch (err) {
+                console.error(
+                    "Error while processing archived stream with ffmpeg:",
+                    err,
+                );
                 return;
             }
 
