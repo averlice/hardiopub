@@ -31,7 +31,7 @@
 
 <h1>Your Profile</h1>
 
-<form use:enhance method="POST">
+<form use:enhance method="POST" action="?/updateProfile">
     {#if form?.message}
         <div class="error-message" role="alert">
             {form.message}

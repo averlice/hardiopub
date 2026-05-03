@@ -55,7 +55,7 @@ export const load: PageServerLoad = async (event) => {
 };
 
 export const actions: Actions = {
-    default: async (event) => {
+    updateProfile: async (event) => {
         const user = event.locals.user;
         const data = await event.request.formData();
         if (!user) {
