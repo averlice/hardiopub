@@ -124,9 +124,6 @@
                     streamEnded = true;
                     player?.stop();
                 },
-                onStreamEnd: () => {
-                    streamEnded = true;
-                },
             },
         );
         player.play();
