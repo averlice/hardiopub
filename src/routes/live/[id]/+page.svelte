@@ -17,16 +17,17 @@
   along with this program. If not, see <https://www.gnu.org/licenses/>.
 -->
 <script lang="ts">
-    import { onMount, tick } from "svelte";
+    export let data;
+
+    import { onMount } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
     import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
+    import { fade, slide } from "svelte/transition";
     import { enhance } from "$app/forms";
     import title from "$lib/title";
 
     onMount(() => title.set(data.stream.title));
-
-    export let data;
 
     $: isOwnerOrAdmin =
         data.user && (data.user.id === data.stream.user?.id || data.isAdmin);
@@ -36,6 +37,7 @@
     let retryInterval: ReturnType<typeof setInterval> | null = null;
     let retryCount = 0;
     let streamEnded = false;
+    let isPlaying = false;
 
     let activeListeners = data.stream.activeListeners;
     let peekListeners = data.stream.peekListeners;
@@ -141,7 +143,6 @@
 
     onMount(() => {
         connectSSE();
-        tick().then(() => audioEl?.load());
         return () => {
             stopRetrying();
             eventSource?.close();
@@ -156,17 +157,27 @@
         <p class="stream-ended">
             Stream has ended or is temporarily unavailable.
         </p>
-    {:else}
-        <audio
-            controls
-            id="player"
-            preload="none"
-            bind:this={audioEl}
-            on:error={startRetrying}
+    {:else if !isPlaying}
+        <button
+            class="play-button"
+            on:click={() => (isPlaying = true)}
+            transition:fade={{ duration: 200 }}
         >
-            <source src="https://live.audiopub.site/{data.stream.user?.id}" />
-            <p>Your browser doesn't support the audio element.</p>
-        </audio>
+            Play
+        </button>
+    {:else}
+        <div transition:slide={{ duration: 300 }}>
+            <audio
+                controls
+                id="player"
+                bind:this={audioEl}
+                on:error={startRetrying}
+                autoplay
+                src="https://live.audiopub.site/{data.stream.user?.id}"
+            >
+                <p>Your browser doesn't support the audio element.</p>
+            </audio>
+        </div>
     {/if}
 </div>
 
@@ -221,6 +232,27 @@
 
     .stream-player {
         margin-bottom: 1rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .play-button {
+        padding: 1rem 2rem;
+        font-size: 1.25rem;
+        border: none;
+        border-radius: 8px;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition:
+            background-color 0.3s ease,
+            transform 0.2s ease;
+    }
+
+    .play-button:hover {
+        background-color: #0056b3;
+        transform: scale(1.05);
     }
 
     .stream-player audio {
