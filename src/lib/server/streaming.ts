@@ -429,12 +429,15 @@ export class StreamingService extends EventEmitter {
             `${this.icecastAdminUser}:${this.icecastAdminPassword}`,
         ).toString("base64");
 
-        await fetch(url, {
-            method: "GET",
-            headers: {
-                Authorization: `Basic ${auth}`,
-            },
-        });
+        try {
+            await fetch(url, {
+                method: "GET",
+                headers: {
+                    Authorization: `Basic ${auth}`,
+                },
+            });
+        } catch {
+        }
     }
 
     private async fetchMounts(): Promise<string[]> {
@@ -492,9 +495,9 @@ export class StreamingService extends EventEmitter {
     }
 
     start(icecast: { host: string; adminUser: string; adminPassword: string }) {
-        icecast.host = this.icecastHost;
-        icecast.adminUser = this.icecastAdminUser;
-        icecast.adminPassword = this.icecastAdminPassword;
+        this.icecastHost = icecast.host;
+        this.icecastAdminUser = icecast.adminUser;
+        this.icecastAdminPassword = icecast.adminPassword;
         console.log("Starting streaming service...");
         this.syncStreams();
         this.poll();
