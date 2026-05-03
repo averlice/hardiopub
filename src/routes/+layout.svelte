@@ -137,7 +137,7 @@
         {#if data.user && data.user.isVerified}
             <div class="action-buttons">
                 <a href="/upload" class="btn-action">Upload</a>
-                <!-- <a href="/live/new" class="btn-action btn-live">Go Live</a> -->
+                <a href="/live/new" class="btn-action btn-live">Go Live</a>
             </div>
         {/if}
     </nav>
