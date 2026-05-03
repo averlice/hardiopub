@@ -301,6 +301,7 @@ export class StreamingService extends EventEmitter {
 
         const probe = await this.probeStream(stream);
         if (!probe) {
+            console.error("Failed to probe stream source for stream", streamId);
             await this.stopArchiving(stream.id);
             await this.disconnectSource(stream.userId);
             return;
@@ -328,6 +329,9 @@ export class StreamingService extends EventEmitter {
             !actualContentType.toLowerCase().startsWith(expectedContentType)
         ) {
             await this.stopArchiving(stream.id);
+            console.error(
+                `Stream content type mismatch for stream ${streamId}: expected ${expectedContentType}, got ${actualContentType}`,
+            );
             await this.disconnectSource(stream.userId);
             return;
         }
