@@ -35,7 +35,7 @@ import { Json } from "sequelize/lib/utils";
 
 export const load: PageServerLoad = async (event) => {
     const audio = await Audio.findByPk(event.params.id, {
-        include: [{ model: Stream, as: "archivedStream" }],
+        include: [{ model: Stream, as: "archivedStream" }, User],
     });
 
     if (!audio) {
