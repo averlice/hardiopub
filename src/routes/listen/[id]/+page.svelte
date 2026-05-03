@@ -183,19 +183,6 @@
             <button type="submit"> Permanently delete</button>
         </form>
     {/if}
-    <section role="group" aria-label="Comments">
-        <h2>Comments</h2>
-        {#if data.comments.length > 0}
-            <CommentList
-                comments={data.comments}
-                isAdmin={data.isAdmin}
-                user={data.user}
-                {onReply}
-            />
-        {:else}
-            <p>No comments yet</p>
-        {/if}
-    </section>
 
     {#if data.archivedStreamChats && data.archivedStreamChats.length > 0 && data.archivedStreamId}
         <details class="chat-history">
@@ -214,6 +201,20 @@
             />
         </details>
     {/if}
+
+    <section role="group" aria-label="Comments">
+        <h2>Comments</h2>
+        {#if data.comments.length > 0}
+            <CommentList
+                comments={data.comments}
+                isAdmin={data.isAdmin}
+                user={data.user}
+                {onReply}
+            />
+        {:else}
+            <p>No comments yet</p>
+        {/if}
+    </section>
 
     {#if data.user && !data.user.isBanned}
         {#if !data.user.isTrusted}
