@@ -38,12 +38,12 @@
 </script>
 
 <article class="chat-message">
-    <header class="chat-header" role="heading" aria-level="3">
+    <h3 class="chat-header">
         <a href="/user/{chat.user.id}" class="username"
             >{chat.user.displayName}</a
         >
         <span class="chat-date">{chatDate}</span>
-    </header>
+    </h3>
     <SafeMarkdown source={chat.content} />
 
     {#if canDelete}

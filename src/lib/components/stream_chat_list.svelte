@@ -35,6 +35,13 @@
         onSendMessage(text);
         messageText = "";
     }
+
+    function handleKeydown(e: KeyboardEvent) {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submitChat();
+        }
+    }
 </script>
 
 <section role="group" aria-label="Live Chat" class="chat-section">
@@ -62,6 +69,7 @@
                 placeholder="Type your message here..."
                 maxlength="1024"
                 bind:value={messageText}
+                on:keydown={handleKeydown}
             ></textarea>
             <button type="submit">Send</button>
         </form>
