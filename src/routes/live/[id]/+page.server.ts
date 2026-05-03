@@ -22,7 +22,14 @@ import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async (event) => {
     const stream = await Stream.findByPk(event.params.id, {
-        include: [User, { model: StreamChat, include: [User] }],
+        include: [
+            User,
+            {
+                model: StreamChat,
+                include: [User],
+                order: [["createdAt", "ASC"]],
+            },
+        ],
     });
 
     if (!stream || stream.state === "finished") {
