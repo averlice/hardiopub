@@ -27,6 +27,7 @@ export const load: PageServerLoad = async (event) => {
             {
                 model: StreamChat,
                 include: [User],
+                separate: true,
                 order: [["createdAt", "ASC"]],
             },
         ],
