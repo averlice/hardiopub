@@ -26,7 +26,6 @@
     import { fade, slide } from "svelte/transition";
     import { enhance } from "$app/forms";
     import title from "$lib/title";
-    import IcecastMetadataPlayer from "icecast-metadata-player";
 
     onMount(() => title.set(data.stream.title));
 
@@ -36,7 +35,13 @@
     let audioEl: HTMLAudioElement;
     let streamEnded = false;
     let isPlaying = false;
-    let player: IcecastMetadataPlayer | null = null;
+    interface IcecastPlayer {
+        play(): void;
+        stop(): void;
+        detachAudioElement(): void;
+    }
+
+    let player: IcecastPlayer | null = null;
 
     let activeListeners = data.stream.activeListeners;
     let peekListeners = data.stream.peekListeners;
@@ -108,6 +113,8 @@
     async function handlePlay() {
         isPlaying = true;
         await tick();
+        const IcecastMetadataPlayer = (await import("icecast-metadata-player"))
+            .default;
         player = new IcecastMetadataPlayer(
             `https://live.audiopub.site/${data.stream.user?.id}`,
             {
