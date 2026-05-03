@@ -16,11 +16,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { Stream, Audio } from "$lib/server/database";
 import { Op } from "sequelize";
 import { EventEmitter } from "node:events";
 import type { ClientsideStreamChat } from "$lib/types";
-import { StreamState } from "$lib/types";
+import { StreamState, StreamFormat } from "$lib/types";
+
+const execFileAsync = promisify(execFile);
 
 export class StreamingService extends EventEmitter {
     private pollIntervalMs: number;
@@ -104,6 +108,7 @@ export class StreamingService extends EventEmitter {
         const updatedStream = await Stream.findByPk(streamId);
         if (!updatedStream) return; // Already finished
 
+        await this.disconnectSource(updatedStream.userId);
         this.notifyStateChanged(
             updatedStream.id,
             updatedStream.state,
@@ -161,6 +166,55 @@ export class StreamingService extends EventEmitter {
         }
     }
 
+    private async probeStream(
+        stream: Stream,
+    ): Promise<{ format: string; codec: string; contentType: string } | null> {
+        const url = `http://${this.icecastHost}/${stream.userId}`;
+        const args = [
+            "-v",
+            "quiet",
+            "-print_format",
+            "json",
+            "-show_entries",
+            "format=format_name:stream=codec_name",
+            "-probesize",
+            "33000",
+            "-i",
+            url,
+        ];
+
+        let output: string;
+        try {
+            const { stdout } = await execFileAsync("ffprobe", args);
+            output = stdout;
+        } catch (e) {
+            return null;
+        }
+
+        let probe: {
+            format?: { format_name?: string };
+            streams?: Array<{ codec_name?: string }>;
+        };
+        try {
+            probe = JSON.parse(output);
+        } catch {
+            return null;
+        }
+
+        const streams = probe.streams ?? [];
+        if (streams.length !== 1) return null;
+
+        const codec = streams[0].codec_name ?? "";
+        const format = probe.format?.format_name ?? "";
+
+        if (codec !== "mp3" && codec !== "aac") return null;
+        if (format !== "mp3" && format !== "aac") return null;
+
+        const contentType = codec === "mp3" ? "audio/mpeg" : "audio/aac";
+
+        return { format, codec, contentType };
+    }
+
     async sourceConnected(streamId: string) {
         const stream = await Stream.findByPk(streamId);
         if (!stream) return;
@@ -171,8 +225,42 @@ export class StreamingService extends EventEmitter {
             oldState === StreamState.disconnected;
         if (!isPendingOrDisconnected) return;
 
+        const probe = await this.probeStream(stream);
+        if (!probe) {
+            await this.disconnectSource(stream.userId);
+            return;
+        }
+
+        const expectedContentType =
+            probe.codec === "mp3" ? "audio/mpeg" : "audio/aac";
+
+        const url = `http://${this.icecastHost}/${stream.userId}`;
+        let actualContentType: string | null = null;
+        try {
+            const controller = new AbortController();
+            const res = await fetch(url, {
+                method: "GET",
+                signal: controller.signal,
+            });
+            actualContentType = res.headers.get("content-type");
+            controller.abort();
+        } catch (err) {
+            console.error("Error fetching stream for content type check:", err);
+        }
+
+        if (
+            actualContentType &&
+            !actualContentType.toLowerCase().startsWith(expectedContentType)
+        ) {
+            await this.disconnectSource(stream.userId);
+            return;
+        }
+
+        const format: StreamFormat =
+            probe.codec === "mp3" ? StreamFormat.mp3 : StreamFormat.aac;
+
         const [updated] = await Stream.update(
-            { state: StreamState.active },
+            { state: StreamState.active, format },
             {
                 where: { id: streamId, state: oldState },
             },
@@ -288,7 +376,6 @@ export class StreamingService extends EventEmitter {
             const mounts: string[] = [];
             const matches = text.matchAll(/<source mount="([^"]+)"/g);
             for (const match of matches) {
-                // Strip leading slash to get userId
                 mounts.push(
                     match[1].startsWith("/") ? match[1].slice(1) : match[1],
                 );
@@ -303,7 +390,6 @@ export class StreamingService extends EventEmitter {
         const mounts = await this.fetchMounts();
         const mountSet = new Set(mounts);
 
-        // Find active streams whose user has no mount → mark disconnected
         const activeStreams = await Stream.findAll({
             where: { state: StreamState.active },
         });
@@ -313,7 +399,6 @@ export class StreamingService extends EventEmitter {
             }
         }
 
-        // Find pending/disconnected streams whose user has a mount → mark active
         const inactiveStreams = await Stream.findAll({
             where: {
                 state: {
