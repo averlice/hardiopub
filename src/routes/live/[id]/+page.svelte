@@ -159,7 +159,7 @@
         <audio
             controls
             id="player"
-            autoplay
+            preload="none"
             bind:this={audioEl}
             on:error={startRetrying}
         >
