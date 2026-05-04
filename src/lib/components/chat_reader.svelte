@@ -27,6 +27,7 @@
     let voiceName = "";
     let pitch = 1;
     let rate = 1;
+    let interrupt = false;
     let collapsed = false;
 
     let voices: SpeechSynthesisVoice[] = [];
@@ -51,6 +52,7 @@
                 voiceName = parsed.voiceName ?? "";
                 pitch = parsed.pitch ?? 1;
                 rate = parsed.rate ?? 1;
+                interrupt = parsed.interrupt ?? false;
             }
         } catch {}
     }
@@ -59,7 +61,14 @@
         if (!isBrowser()) return;
         localStorage.setItem(
             STORAGE_KEY,
-            JSON.stringify({ enabled, outputMode, voiceName, pitch, rate }),
+            JSON.stringify({
+                enabled,
+                outputMode,
+                voiceName,
+                pitch,
+                rate,
+                interrupt,
+            }),
         );
     }
 
@@ -79,7 +88,9 @@
     }
 
     function speak(text: string) {
-        speechSynthesis.cancel();
+        if (interrupt) {
+            speechSynthesis.cancel();
+        }
         utterThis = new SpeechSynthesisUtterance(text);
         utterThis.pitch = pitch;
         utterThis.rate = rate;
@@ -105,7 +116,8 @@
         outputMode !== undefined ||
         voiceName !== undefined ||
         pitch !== undefined ||
-        rate !== undefined
+        rate !== undefined ||
+        interrupt !== undefined
     ) {
         saveSettings();
     }
@@ -194,10 +206,14 @@
                         <input
                             type="range"
                             min="0.5"
-                            max="2"
+                            max="10"
                             step="0.1"
                             bind:value={rate}
                         />
+                    </label>
+                    <label class="setting-row">
+                        <input type="checkbox" bind:checked={interrupt} />
+                        Interrupt previous speech on a new message
                     </label>
                 </div>
             {/if}
