@@ -21,6 +21,7 @@
 
     import { onMount, tick } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
+    import ChatReader from "$lib/components/chat_reader.svelte";
     import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import { fade, slide } from "svelte/transition";
@@ -47,6 +48,7 @@
     let peekListeners = data.stream.peekListeners;
 
     let chats = (data.chats ?? []) as ClientsideStreamChat[];
+    let latestChat: ClientsideStreamChat | null = null;
     let eventSource: EventSource | null = null;
 
     function connectSSE() {
@@ -77,6 +79,7 @@
         eventSource.addEventListener("chat", (e) => {
             const chat = JSON.parse(e.data) as ClientsideStreamChat;
             chats = [...chats.filter((c) => c.id !== chat.id), chat];
+            handleNewChat(chat);
         });
 
         eventSource.addEventListener("chat_delete", (e) => {
@@ -108,6 +111,10 @@
 
     function handleDeleteChat(chatId: string) {
         fetch(`/live/${data.stream.id}/${chatId}`, { method: "DELETE" });
+    }
+
+    function handleNewChat(chat: ClientsideStreamChat) {
+        latestChat = chat;
     }
 
     async function handlePlay() {
@@ -204,6 +211,8 @@
     streamOwnerId={data.stream.user?.id ?? null}
     onSendMessage={handleSendMessage}
 />
+
+<ChatReader chat={latestChat} />
 
 <style>
     h1 {
