@@ -37,12 +37,12 @@
 
     const STORAGE_KEY = "chatReaderSettings";
 
-    function isBrowser() {
+    function hasLocalStorage() {
         return typeof localStorage !== "undefined";
     }
 
     function loadSettings() {
-        if (!isBrowser()) return;
+        if (!hasLocalStorage()) return;
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
@@ -58,7 +58,7 @@
     }
 
     function saveSettings() {
-        if (!isBrowser()) return;
+        if (!hasLocalStorage()) return;
         localStorage.setItem(
             STORAGE_KEY,
             JSON.stringify({
@@ -111,17 +111,6 @@
         }
     }
 
-    $: if (
-        enabled !== undefined ||
-        outputMode !== undefined ||
-        voiceName !== undefined ||
-        pitch !== undefined ||
-        rate !== undefined ||
-        interrupt !== undefined
-    ) {
-        saveSettings();
-    }
-
     $: if (chat) handleChat();
 
     onMount(() => {
@@ -130,6 +119,7 @@
         speechSynthesis.onvoiceschanged = loadVoices;
         window.addEventListener("keydown", handleKeydown);
         return () => {
+            saveSettings();
             window.removeEventListener("keydown", handleKeydown);
             cancelSpeech();
         };
