@@ -36,7 +36,12 @@
 
     const STORAGE_KEY = "chatReaderSettings";
 
+    function isBrowser() {
+        return typeof localStorage !== "undefined";
+    }
+
     function loadSettings() {
+        if (!isBrowser()) return;
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
@@ -51,6 +56,7 @@
     }
 
     function saveSettings() {
+        if (!isBrowser()) return;
         localStorage.setItem(
             STORAGE_KEY,
             JSON.stringify({ enabled, outputMode, voiceName, pitch, rate }),
