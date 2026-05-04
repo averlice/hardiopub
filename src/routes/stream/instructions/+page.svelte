@@ -108,10 +108,6 @@
         <dt>Mount point</dt>
         <dd>
             <code>{placeholderUserId}</code>
-            <span class="note">
-                (This is your user ID. It is not sensitive; you can share it
-                freely.)
-            </span>
         </dd>
 
         <dt>Username</dt>
@@ -327,9 +323,5 @@
 
     .url-display {
         margin: 1rem 0;
-    }
-
-    form {
-        margin-bottom: 1rem;
     }
 </style>
