@@ -76,6 +76,9 @@
     <form use:enhance method="POST" action="?/resetStreamKey">
         <button type="submit" class="reset-key-btn">Reset Stream Key</button>
     </form>
+    <p class="stream-help-link">
+        <a href="/stream/instructions">How to stream?</a>
+    </p>
 </section>
 
 <h2>Your Uploads</h2>

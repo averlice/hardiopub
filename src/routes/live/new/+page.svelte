@@ -49,6 +49,14 @@
     </p>
 </div>
 
+<p class="stream-help-link">
+    Not sure how to connect your software? <a
+        href="/stream/instructions"
+        target="_blank"
+        rel="noopener">Read the streaming instructions</a
+    >
+</p>
+
 <form
     use:enhance={() => {
         submitting = true;
