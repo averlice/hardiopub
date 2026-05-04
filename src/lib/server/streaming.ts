@@ -501,6 +501,8 @@ export class StreamingService extends EventEmitter {
         for (const stream of activeStreams) {
             if (!mountSet.has(stream.userId)) {
                 await this.sourceDisconnected(stream.id);
+            } else if (stream.shouldArchive) {
+                await this.startArchiving(stream);
             }
         }
 
