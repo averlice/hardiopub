@@ -117,6 +117,20 @@
         latestChat = chat;
     }
 
+    function iOS() : boolean {
+        return (
+            [
+                "iPad Simulator",
+                "iPhone Simulator",
+                "iPod Simulator",
+                "iPad",
+                "iPhone",
+                "iPod",
+            ].includes(navigator.platform) ||
+            (navigator.userAgent.includes("Mac") && "ontouchend" in document)
+        );
+    }
+
     async function handlePlay() {
         isPlaying = true;
         await tick();
@@ -126,6 +140,7 @@
             `https://live.audiopub.site/${data.stream.user?.id}`,
             {
                 audioElement: audioEl,
+                playbackMethod: iOS() ? "html5" : undefined,
                 metadataTypes: [],
                 onRetryTimeout: () => {
                     streamEnded = true;
