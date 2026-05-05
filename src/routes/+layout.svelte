@@ -90,11 +90,12 @@
         const onFocus = () => kickImmediate();
         document.addEventListener("visibilitychange", onVis);
         window.addEventListener("focus", onFocus);
-        await OneSignal.init({
+        OneSignal.init({
             appId: PUBLIC_ONE_SIGNAL_APP_ID,
             allowLocalhostAsSecureOrigin: true,
+        }).then(() => {
+            onesignalReady = true;
         });
-        onesignalReady = true;
         return () => {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener("focus", onFocus);
