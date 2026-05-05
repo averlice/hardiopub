@@ -1,7 +1,7 @@
 /*
  * This file is part of the audiopub project.
  *
- * Copyright (C) 2024 the-byte-bender
+ * Copyright (C) 2026 the-byte-bender
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,11 +16,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { redirect } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
+import { User } from "$lib/server/database";
 
-export const GET: RequestHandler = (event) => {
-    event.cookies.delete("token", { path: "/" });
-    event.locals.user = null;
-    return redirect(303, "/");
+export const GET: RequestHandler = async (event) => {
+    const user = event.locals.user;
+    if (!user) {
+        return new Response(null, { status: 401 });
+    }
+
+    if (!user.notificationKey) {
+        user.notificationKey = crypto.randomUUID();
+        await user.save();
+    }
+
+    return Response.json({ notificationKey: user.notificationKey });
 };

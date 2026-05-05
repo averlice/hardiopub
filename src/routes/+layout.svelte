@@ -20,7 +20,10 @@
     import { enhance } from "$app/forms";
     import title from "$lib/title";
     import { onDestroy, onMount } from "svelte";
+    import { browser } from "$app/environment";
+    import OneSignal from "react-onesignal";
     import type { LayoutData } from "./$types";
+    import { PUBLIC_ONE_SIGNAL_APP_ID } from "$env/static/public";
 
     export let data: LayoutData;
 
@@ -86,11 +89,35 @@
         const onFocus = () => kickImmediate();
         document.addEventListener("visibilitychange", onVis);
         window.addEventListener("focus", onFocus);
+        OneSignal.init({
+            appId: PUBLIC_ONE_SIGNAL_APP_ID,
+            allowLocalhostAsSecureOrigin: true,
+        });
+        OneSignal.Notifications.isPushSupported;
         return () => {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener("focus", onFocus);
         };
     });
+
+    async function loginOnesignal() {
+        const res = await fetch("/user/notification-key");
+        if (!res.ok) return;
+        const { notificationKey } = await res.json();
+        if (notificationKey) {
+            await OneSignal.login(notificationKey);
+        }
+        if (OneSignal.Notifications.permissionNative === "default")
+            OneSignal.Notifications.requestPermission();
+    }
+
+    $: if (browser && data.user !== undefined) {
+        if (data.user) {
+            loginOnesignal();
+        } else {
+            OneSignal.logout();
+        }
+    }
 
     onDestroy(() => {
         if (timer) clearTimeout(timer);

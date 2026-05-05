@@ -119,6 +119,11 @@ export default class User extends Model {
     @Column(DataType.UUID)
     declare streamKey: string | null;
 
+    @AllowNull(true)
+    @Default(DataType.UUIDV4)
+    @Column(DataType.UUID)
+    declare notificationKey: string | null;
+
     @CreatedAt
     declare createdAt: Date;
 
