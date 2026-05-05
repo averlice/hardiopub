@@ -35,6 +35,7 @@
     let inFlight = false;
     let lastFetchTs = 0;
     const MIN_IMMEDIATE_INTERVAL = 20000;
+    let onesignalReady = false;
 
     async function refreshUnread() {
         if (!data.user) return;
@@ -94,6 +95,7 @@
             allowLocalhostAsSecureOrigin: true,
         });
         OneSignal.Notifications.isPushSupported;
+        onesignalReady = true;
         return () => {
             document.removeEventListener("visibilitychange", onVis);
             window.removeEventListener("focus", onFocus);
@@ -111,7 +113,7 @@
             OneSignal.Notifications.requestPermission();
     }
 
-    $: if (browser && data.user !== undefined) {
+    $: if (browser && onesignalReady && data.user !== undefined) {
         if (data.user) {
             loginOnesignal();
         } else {
