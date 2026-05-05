@@ -26,6 +26,7 @@ export const load: PageServerLoad = async (event) => {
     const page = pageString ? parseInt(pageString, 10) : 1;
     const sortField = event.url.searchParams.get("sort") || "createdAt";
     const sortOrder = event.url.searchParams.get("order") || "DESC";
+    const excludeArchives = event.url.searchParams.get("excludeArchives") === "on";
 
     const validSortFields = [
         "createdAt",
@@ -68,6 +69,7 @@ export const load: PageServerLoad = async (event) => {
         limit,
         offset,
         order,
+        where: excludeArchives ? { archivedStreamId: { [Op.is]: null } } : {},
         include: {
             model: User,
             where: event.locals.user?.isAdmin ? {} : { isTrusted: true },
@@ -142,5 +144,6 @@ export const load: PageServerLoad = async (event) => {
         totalPages: Math.ceil(audios.count / limit),
         sortField: validatedSortField,
         sortOrder: validatedSortOrder,
+        excludeArchives,
     };
 };
