@@ -99,6 +99,11 @@
         </select>
         <br />
     {/if}
+    <label>
+        <input type="checkbox" name="excludeArchives" checked={data.excludeArchives} />
+        Exclude streaming archives
+    </label>
+    <br />
     <button type="submit">Sort</button>
 </form>
 
@@ -109,5 +114,5 @@
     page={data.page}
     totalPages={data.totalPages}
     currentUser={data.user}
-    paginationBaseUrl={`/?sort=${data.sortField}${data.sortField === "random" ? "" : "&order=" + data.sortOrder}`}
+    paginationBaseUrl={`/?sort=${data.sortField}${data.sortField === "random" ? "" : "&order=" + data.sortOrder}${data.excludeArchives ? "&excludeArchives=on" : ""}`}
 />
