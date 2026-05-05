@@ -23,33 +23,38 @@
     import { browser } from "$app/environment";
     import OneSignal from "react-onesignal";
     import type { PageData } from "./$types";
+    import { onMount } from "svelte";
     export let data: PageData;
 
-    let pushPermissionSet = false;
+    let pushSupported = false;
+    let permissionGranted = false;
 
     async function togglePush() {
         if (!browser) return;
-        if (!OneSignal.Notifications.isPushSupported()) return;
+        if (!pushSupported) return;
         const optedIn = OneSignal.User.PushSubscription.optedIn as boolean;
         if (optedIn) {
             await OneSignal.User.PushSubscription.optOut();
         } else {
             await OneSignal.User.PushSubscription.optIn();
         }
-        pushPermissionSet = !pushPermissionSet;
     }
 
     async function requestPermission() {
-        if (!browser) return;
-        if (!OneSignal.Notifications.isPushSupported()) return;
+        if (!browser || !pushSupported) return;
         await OneSignal.Notifications.requestPermission();
-        pushPermissionSet = !pushPermissionSet;
+        permissionGranted = OneSignal.Notifications.permission as boolean;
     }
+
+    onMount(() => {
+        pushSupported = OneSignal.Notifications.isPushSupported();
+        permissionGranted = OneSignal.Notifications.permission as boolean;
+    });
 </script>
 
 <h1>Notifications</h1>
 
-{#if browser && data.user && OneSignal.Notifications.permission}
+{#if browser && data.user && permissionGranted}
     <div class="push-toggle">
         <label>
             <input
@@ -60,7 +65,7 @@
             Push notifications
         </label>
     </div>
-{:else if browser && data.user && OneSignal.Notifications.isPushSupported()}
+{:else if browser && data.user && pushSupported}
     <div class="push-alert" role="alert">
         <p>Would you like to receive push notifications on this device?</p>
         <button on:click={requestPermission}>Enable Push Notifications</button>
