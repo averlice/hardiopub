@@ -174,8 +174,8 @@
 <p>
     The site is currently hosted on infrastructure kindly provided by Patrick
     from braillescreen. It's a generous arrangement that allows me to keep the
-    platform running without charging users to use it, but you're incouraged to reward his
-    kindness by donating to him directly on <a
+    platform running without charging users to use it, but you're encouraged to
+    reward his kindness by donating to him directly on <a
         href="https://paypal.me/paypwilson">PayPal</a
     >, or BrailleScreen on Venmo and CashApp.
 </p>
