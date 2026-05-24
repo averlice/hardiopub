@@ -44,6 +44,7 @@ export const load: PageServerLoad = async (event) => {
         name: user.name,
         email: user.email,
         displayName: user.displayName,
+        bio: user.bio,
         streamKey: user.streamKey,
         audios: audios.rows.map((audio) => audio.toClientside()),
         count: audios.count,
@@ -63,6 +64,7 @@ export const actions: Actions = {
         }
         let email = data.get("email") as string;
         let displayName = data.get("displayName") as string;
+        let bio = data.get("bio") as string;
         let password = data.get("password") as string;
         if (email) {
             email = email.trim().toLowerCase();
@@ -88,6 +90,16 @@ export const actions: Actions = {
                 });
             }
             user.displayName = displayName;
+        }
+        if (bio || bio == "") {
+            if (bio.length > 1000) {
+                return fail(400, {
+                    email,
+                    displayName,
+                    message: "Bio can't be longer than 1000 characters",
+                })
+            }
+            user.bio = bio;
         }
         if (password) {
             if (password.length < 8 || password.length > 64) {

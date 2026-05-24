@@ -50,6 +50,7 @@ export interface UserInfo {
     name: string;
     email?: string;
     displayName: string;
+    bio: string;
     isBanned: boolean;
     isVerified: boolean;
 }
@@ -79,6 +80,11 @@ export default class User extends Model {
     @AllowNull(true)
     @Column(DataType.STRING)
     declare displayName: string;
+
+    @AllowNull(false)
+    @Default("")
+    @Column(DataType.TEXT)
+    declare bio: string;
 
     @AllowNull(true)
     @Default(DataType.UUIDV4)
@@ -250,6 +256,7 @@ export default class User extends Model {
             name: this.name,
             email: (includeSencitiveInfo && this.email) || undefined,
             displayName: this.displayName,
+            bio: this.bio,
             isBanned: this.isBanned,
             isVerified: this.isVerified,
         };
@@ -260,6 +267,7 @@ export default class User extends Model {
             id: this.id,
             name: this.name,
             displayName: this.displayName,
+            bio: this.bio,
             isBanned: this.isBanned,
             isVerified: this.isVerified,
             isTrusted: this.isTrusted,
