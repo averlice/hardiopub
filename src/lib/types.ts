@@ -20,6 +20,7 @@ export interface ClientsideUser {
     id: string;
     name: string;
     displayName: string;
+    bio: string;
     isBanned: boolean;
     isVerified: boolean;
     isTrusted: boolean;

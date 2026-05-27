@@ -49,6 +49,13 @@
         minlength="3"
         maxlength="30"
     />
+    <label for="bio">Bio:</label>
+    <textarea
+    id="bio"
+    name="bio"
+    value={data.bio}
+    maxlength="1000"
+    ></textarea>
     <label for="password">New Password:</label>
     <input
         type="password"
@@ -114,7 +121,8 @@
     }
 
     input[type="text"],
-    input[type="email"] {
+    input[type="email"],
+    textarea {
         padding: 0.5rem;
         border: 1px solid #ccc;
     }

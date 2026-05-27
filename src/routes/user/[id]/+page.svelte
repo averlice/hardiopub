@@ -19,6 +19,7 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
     import AudioList from "$lib/components/audio_list.svelte";
+    import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import StreamCard from "$lib/components/stream_card.svelte";
     import title from "$lib/title.js";
     import { onMount } from "svelte";
@@ -44,6 +45,12 @@
         </tr>
     </tbody>
 </table>
+
+{#if data.profileUser.bio != ""}
+<h2>Bio</h2>
+
+<SafeMarkdown source={data.profileUser.bio} />
+{/if}
 
 {#if data.isAdmin}
     {#if !data.profileUser.isTrusted}
