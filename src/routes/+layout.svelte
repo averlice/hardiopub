@@ -156,6 +156,9 @@
                 </a>
                 <a href="/favorites">Favorites</a>
                 <a href="/profile">Profile</a>
+                {#if data.isAdmin}
+                    <a href="/admin">Admin</a>
+                {/if}
                 <a href="/logout">Logout</a>
             {/if}
         {:else}
