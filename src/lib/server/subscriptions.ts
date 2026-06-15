@@ -1,6 +1,6 @@
 import { error, type RequestEvent } from "@sveltejs/kit";
 import Subscription from "./database/models/subscription";
-import { User } from "./database";
+import { Audio, User } from "./database";
 
 export const subscribe = async (event: RequestEvent): Promise<any> => {
     const user = event.locals.user;
@@ -8,7 +8,13 @@ export const subscribe = async (event: RequestEvent): Promise<any> => {
         return error(403, "Forbidden");
     }
     
-    const subscribedToUser = await User.findByPk(event.params.id);
+    let subscribedToUser;
+    if (event.route.id == "/user/[id]") subscribedToUser = await User.findByPk(event.params.id);
+    else if (event.route.id == "/listen/[id]") {
+        const audio = await Audio.findByPk(event.params.id);
+        subscribedToUser = await User.findByPk(audio?.userId);
+    }
+
     if (!subscribedToUser) {
         return error(403, "Forbidden");
     }
@@ -31,7 +37,13 @@ export const unsubscribe = async (event: RequestEvent): Promise<any> => {
         return error(403, "Forbidden");
     }
     
-    const subscribedToUser = await User.findByPk(event.params.id);
+    let subscribedToUser;
+    if (event.route.id == "/user/[id]") subscribedToUser = await User.findByPk(event.params.id);
+    else if (event.route.id == "/listen/[id]") {
+        const audio = await Audio.findByPk(event.params.id);
+        subscribedToUser = await User.findByPk(audio?.userId);
+    }
+
     if (!subscribedToUser) {
         return error(403, "Forbidden");
     }

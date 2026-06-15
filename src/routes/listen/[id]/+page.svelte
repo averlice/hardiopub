@@ -26,6 +26,7 @@
     import title from "$lib/title";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import type { ClientsideComment } from "$lib/types.js";
+    import SubscribeButton from "$lib/components/subscribe_button.svelte";
 
     export let form: any;
 
@@ -140,6 +141,7 @@
                 >{data.audio.user.name}</a
             >
         </p>
+        <SubscribeButton isSubscribed={data.isSubscribed}></SubscribeButton>
     {/if}
     <p>Upload date: {new Date(data.audio.createdAt).toLocaleDateString()}</p>
     {#if data.user}
