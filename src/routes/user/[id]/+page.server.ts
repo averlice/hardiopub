@@ -50,9 +50,12 @@ export const load: PageServerLoad = async (event) => {
     });
 
     const user = event.locals.user;
-    const subscription = await Subscription.findOne({
-        where: { subscriberId: user?.id, subscribedToId: profileUser.id }
-    });
+    let subscription;
+    if (user) {
+        subscription = await Subscription.findOne({
+            where: { subscriberId: user.id, subscribedToId: profileUser.id }
+        });
+    }
     
     let isSubscribed: boolean;
     if (subscription) isSubscribed = true;
