@@ -20,6 +20,8 @@ import { Audio, Comment, User, Stream } from "$lib/server/database";
 import { error, redirect } from "@sveltejs/kit";
 import { Op } from "sequelize";
 import type { Actions, PageServerLoad } from "./$types";
+import Subscription from "$lib/server/database/models/subscription";
+import { subscribe, unsubscribe } from "$lib/server/subscriptions";
 
 export const load: PageServerLoad = async (event) => {
     const pageString = event.url.searchParams.get("page");
@@ -43,6 +45,19 @@ export const load: PageServerLoad = async (event) => {
         }),
     ]);
 
+    const subscribers = await Subscription.count({
+        where: { subscribedToId: profileUser.id }
+    });
+
+    const user = event.locals.user;
+    const subscription = await Subscription.findOne({
+        where: { subscriberId: user?.id, subscribedToId: profileUser.id }
+    });
+    
+    let isSubscribed: boolean;
+    if (subscription) isSubscribed = true;
+    else isSubscribed = false;
+
     return {
         stream: activeStream?.toClientside(false) ?? null,
         audios: audios.rows.map((audio) => audio.toClientside()),
@@ -50,6 +65,8 @@ export const load: PageServerLoad = async (event) => {
         page,
         limit,
         totalPages: Math.ceil(audios.count / limit),
+        subscribers,
+        isSubscribed,
         profileUser: profileUser.toClientside(),
     };
 };
@@ -101,4 +118,6 @@ export const actions: Actions = {
         userToBeTrusted.isTrusted = true;
         await userToBeTrusted.save();
     },
+    subscribe,
+    unsubscribe
 };
