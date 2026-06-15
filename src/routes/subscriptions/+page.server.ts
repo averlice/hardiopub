@@ -44,5 +44,6 @@ export const load: ServerLoad = async (event) => {
         page,
         limit,
         totalPages: Math.ceil(audios.count / limit),
+        hasSubscriptions: subscribedToUsers.length > 0
     }
 }

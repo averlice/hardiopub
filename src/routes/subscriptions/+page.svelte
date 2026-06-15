@@ -17,6 +17,7 @@
         {/each}
 {/if}
 
+{#if data.hasSubscriptions}
 {#if data.audios.length > 0}
 <AudioList
     audios={data.audios}
@@ -25,6 +26,9 @@
     currentUser={data.user}
     paginationBaseUrl="/subscriptions"
 />
-{:else if data.streams.length > 0}
-Nothing to show yet
+{:else if data.streams.length == 0}
+Nobody you subscribed to has posted yet
+{/if}
+{:else}
+You haven't subscribed to anyone yet
 {/if}
