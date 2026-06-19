@@ -91,17 +91,27 @@
                 event.preventDefault();
                 togglePlay();
                 break;
+            case "j":
             case "ArrowLeft":
                 if (!live) {
                     event.preventDefault();
                     seek(-10);
                 }
                 break;
+            case "l":
             case "ArrowRight":
                 if (!live) {
                     event.preventDefault();
                     seek(10);
                 }
+                break;
+            case "m":
+                event.preventDefault();
+                toggleMute();
+                break;
+            case ":":
+                event.preventDefault();
+                cycleSpeed();
                 break;
         }
     }
