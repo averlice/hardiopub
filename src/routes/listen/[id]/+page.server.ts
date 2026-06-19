@@ -141,7 +141,7 @@ export const load: PageServerLoad = async (event) => {
     }
 
         const subscribers = await Subscription.count({
-            where: { subscribedToId: audio.user?.id }
+            where: { subscribedToId: audio.userId }
         });
     
     const user = event.locals.user;
