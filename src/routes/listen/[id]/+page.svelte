@@ -26,6 +26,7 @@
     import title from "$lib/title";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import type { ClientsideComment } from "$lib/types.js";
+    import AudioPlayer from "$lib/components/audio_player.svelte";
 
     export let form: any;
 
@@ -71,11 +72,14 @@
 <h1>{data.audio.title}</h1>
 
 <div class="audio-player">
-    <audio controls id="player" on:play={handlePlay} autofocus>
-        <source src="/{data.audio.path}" type={data.mimeType} />
-        <source src="/{data.audio.transcodedPath}" type="audio/aac" />
-        <p>Your browser doesn't support the audio element.</p>
-    </audio>
+    <AudioPlayer
+        autofocus
+        on:play={handlePlay}
+        sources={[
+            { src: `/${data.audio.path}`, type: data.mimeType },
+            { src: `/${data.audio.transcodedPath}`, type: "audio/aac" },
+        ]}
+    />
     <a
         href="/{data.audio.path}"
         download={data.audio.title +
@@ -254,12 +258,6 @@
     /* Styling for the audio player section */
     .audio-player {
         margin-bottom: 1rem;
-    }
-
-    /* Styling for the audio controls */
-    audio {
-        width: 100%;
-        margin-bottom: 0.5rem;
     }
 
     /* Styling for the download link */
