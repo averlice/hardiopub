@@ -62,7 +62,7 @@
     }
 
     function cycleSpeed() {
-        if (!audioElement) return;
+        if (!audioElement || live) return;
         const index = SPEEDS.indexOf(playbackRate);
         const next = SPEEDS[(index + 1) % SPEEDS.length];
         audioElement.playbackRate = next;
