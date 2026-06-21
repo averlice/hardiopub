@@ -226,6 +226,7 @@
                 value={currentTime}
                 on:input={onSeekInput}
                 aria-label="Seek"
+                aria-valuetext="{formatTime(currentTime)}/{formatTime(duration)}"
                 disabled={!duration}
             />
             <span class="time duration">{formatTime(duration)}</span>
@@ -234,7 +235,7 @@
                 type="button"
                 class="ctrl speed"
                 on:click={cycleSpeed}
-                aria-label="Playback speed"
+                aria-label="Playback speed {playbackRate}x"
             >
                 {playbackRate}×
             </button>
@@ -271,6 +272,7 @@
             value={muted ? 0 : volume}
             on:input={onVolumeInput}
             aria-label="Volume"
+            aria-valuetext="{muted ? 0 : volume * 100}%"
         />
     </div>
 </section>
