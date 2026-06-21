@@ -141,7 +141,9 @@
                 >{data.audio.user.name}</a
             >
         </p>
-        <SubscribeButton isSubscribed={data.isSubscribed}></SubscribeButton>
+        {#if data.user && data.user.id != data.audio.user.id}
+            <SubscribeButton isSubscribed={data.isSubscribed}></SubscribeButton>
+        {/if}
     {/if}
     <p>Upload date: {new Date(data.audio.createdAt).toLocaleDateString()}</p>
     {#if data.user}
