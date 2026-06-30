@@ -21,6 +21,7 @@
 
     import { onMount, tick } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
+    import AudioPlayer from "$lib/components/audio_player.svelte";
     import ChatReader from "$lib/components/chat_reader.svelte";
     import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
@@ -178,9 +179,7 @@
         </button>
     {:else}
         <div transition:slide={{ duration: 300 }}>
-            <audio controls id="player" bind:this={audioEl}>
-                <p>Your browser doesn't support the audio element.</p>
-            </audio>
+            <AudioPlayer live bind:audioElement={audioEl} />
         </div>
     {/if}
 </div>
@@ -259,11 +258,6 @@
     .play-button:hover {
         background-color: #0056b3;
         transform: scale(1.05);
-    }
-
-    .stream-player audio {
-        width: 100%;
-        margin-bottom: 0.5rem;
     }
 
     .stream-ended {
