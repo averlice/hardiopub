@@ -140,7 +140,7 @@
     </div>
     {#if data.audio.user}
         <p>
-            Uploaded by: <a href="/user/{data.audio.user.id}"
+            Uploaded by: <a href="/user/@{encodeURIComponent(data.audio.user.name)}"
                 >{data.audio.user.name}</a
             >
         </p>

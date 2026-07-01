@@ -196,7 +196,7 @@
 
     {#if data.stream.user}
         <p>
-            Streaming by: <a href="/user/{data.stream.user.id}"
+            Streaming by: <a href="/user/@{encodeURIComponent(data.stream.user.name)}"
                 >{data.stream.user.displayName}</a
             >
         </p>

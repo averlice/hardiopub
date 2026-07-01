@@ -21,12 +21,19 @@ import { error, redirect } from "@sveltejs/kit";
 import { Op } from "sequelize";
 import type { Actions, PageServerLoad } from "./$types";
 
+async function findUserByProfileParam(param: string) {
+    if (param.startsWith("@")) {
+        return User.findOne({ where: { name: param.slice(1).toLowerCase() } });
+    }
+    return User.findByPk(param);
+}
+
 export const load: PageServerLoad = async (event) => {
     const pageString = event.url.searchParams.get("page");
     const page = pageString ? parseInt(pageString, 10) : 1;
     const limit = 30;
     const offset = (page - 1) * limit;
-    const profileUser = await User.findByPk(event.params.id);
+    const profileUser = await findUserByProfileParam(event.params.id);
     if (!profileUser) {
         return redirect(303, "/");
     }
@@ -59,7 +66,7 @@ export const actions: Actions = {
         if (!user || !user.isAdmin) {
             return error(403, "Forbidden");
         }
-        const userToBeBanned = await User.findByPk(event.params.id);
+        const userToBeBanned = await findUserByProfileParam(event.params.id);
         if (!userToBeBanned) {
             return error(404, "User not found");
         }
@@ -72,14 +79,14 @@ export const actions: Actions = {
             await Audio.destroy({ where: { userId: userToBeBanned.id } });
             await Comment.destroy({ where: { userId: userToBeBanned.id } });
         }
-        return redirect(303, `/user/${userToBeBanned.id}`);
+        return redirect(303, `/user/@${encodeURIComponent(userToBeBanned.name)}`);
     },
     warn: async (event) => {
         const user = event.locals.user;
         if (!user || !user.isAdmin) {
             return error(403, "Forbidden");
         }
-        const userToBeWarned = await User.findByPk(event.params.id);
+        const userToBeWarned = await findUserByProfileParam(event.params.id);
         if (!userToBeWarned) {
             return error(404, "User not found");
         }
@@ -87,14 +94,14 @@ export const actions: Actions = {
         const reason = form.get("reason") as string;
         const message = form.get("message") as string;
         await userToBeWarned.warn(reason, message);
-        return redirect(303, `/user/${userToBeWarned.id}`);
+        return redirect(303, `/user/@${encodeURIComponent(userToBeWarned.name)}`);
     },
     trust: async (event) => {
         const user = event.locals.user;
         if (!user || !user.isAdmin) {
             return error(403, "Forbidden");
         }
-        const userToBeTrusted = await User.findByPk(event.params.id);
+        const userToBeTrusted = await findUserByProfileParam(event.params.id);
         if (!userToBeTrusted) {
             return error(404, "User not found");
         }
