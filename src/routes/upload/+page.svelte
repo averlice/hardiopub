@@ -58,6 +58,13 @@
             maxlength="5000"
             class="form-control"
         ></textarea>
+        <p class="hint">
+            Add chapters with a <code>## Chapters</code> heading in the
+            description. Each line can use <code>- [00:00] Intro</code>,
+            <code>01:23 - Topic</code>, or <code>1:02:03 Outro</code>.
+            Chapters will appear as clickable timestamps on the audio page and
+            will be removed from the displayed description.
+        </p>
     </div>
     <div class="form-group">
         <label for="audio">Audio File:</label>
@@ -137,6 +144,12 @@
         color: #666;
         margin-bottom: 1rem;
         text-align: center;
+    }
+
+    .hint {
+        margin: 0.35rem 0 0;
+        font-size: 0.85rem;
+        color: #666;
     }
 
     .btn {
