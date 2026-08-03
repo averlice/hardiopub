@@ -24,10 +24,14 @@
     import AudioPlayer from "$lib/components/audio_player.svelte";
     import ChatReader from "$lib/components/chat_reader.svelte";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
+    import Modal from "$lib/components/modal.svelte";
     import { fade, slide } from "svelte/transition";
     import { enhance } from "$app/forms";
     import title from "$lib/title";
-    import type { ClientsideStreamChat, ClientsideStreamMute } from "$lib/types";
+    import type {
+        ClientsideStreamChat,
+        ClientsideStreamMute,
+    } from "$lib/types";
 
     onMount(() => title.set(data.stream.title));
 
@@ -147,7 +151,10 @@
         };
     }
 
+    let showEndConfirm = false;
+
     function handleEndStream() {
+        showEndConfirm = false;
         fetch(`/live/${data.stream.id}`, { method: "DELETE" });
     }
 
@@ -170,8 +177,7 @@
                 if (typeof body?.message === "string") {
                     message = body.message;
                 }
-            } catch {
-            }
+            } catch {}
             setChatNotice(message);
             return false;
         }
@@ -223,7 +229,7 @@
         latestChat = chat;
     }
 
-    function iOS() : boolean {
+    function iOS(): boolean {
         return (
             [
                 "iPad Simulator",
@@ -305,7 +311,8 @@
 
     {#if data.stream.user}
         <p>
-            Streaming by: <a href="/user/@{encodeURIComponent(data.stream.user.name)}"
+            Streaming by: <a
+                href="/user/@{encodeURIComponent(data.stream.user.name)}"
                 >{data.stream.user.displayName}</a
             >
         </p>
@@ -314,10 +321,26 @@
     <p>Started: {new Date(data.stream.createdAt).toLocaleString()}</p>
 
     {#if isOwnerOrAdmin}
-        <button class="end-stream-button" on:click={handleEndStream}>
+        <button
+            class="end-stream-button"
+            on:click={() => (showEndConfirm = true)}
+        >
             End Stream
         </button>
     {/if}
+
+    <Modal bind:visible={showEndConfirm}>
+        <h2>End stream?</h2>
+        <p>
+            This will end the stream immediately. This action cannot be undone.
+        </p>
+        <div class="modal-actions">
+            <button type="button" on:click={() => (showEndConfirm = false)}
+                >Cancel</button
+            >
+            <button type="button" on:click={handleEndStream}>End Stream</button>
+        </div>
+    </Modal>
 
     {#if isOwnerOrAdmin}
         <details class="moderation-panel">
@@ -350,8 +373,9 @@
                         {#each mutes as mute}
                             <li>
                                 <a
-                                    href="/user/@{encodeURIComponent(mute.userName)}"
-                                    >{mute.displayName}</a
+                                    href="/user/@{encodeURIComponent(
+                                        mute.userName,
+                                    )}">{mute.displayName}</a
                                 >
                                 <span class="mute-info">
                                     {#if mute.expiresAt}
@@ -489,6 +513,13 @@
 
     .end-stream-button:hover {
         background-color: #a71d2a;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 1rem;
     }
 
     .moderation-panel {
