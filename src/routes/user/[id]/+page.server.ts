@@ -41,6 +41,18 @@ export const load: PageServerLoad = async (event) => {
     const [audios, activeStream] = await Promise.all([
         Audio.findAndCountAll({
             where: { userId: profileUser.id },
+            include:
+                profileUser.isTrusted ||
+                event.locals.user?.isAdmin ||
+                event.locals.user?.id === profileUser.id
+                    ? []
+                    : [
+                          {
+                              model: User,
+                              required: true,
+                              where: { isTrusted: true },
+                          },
+                      ],
             limit,
             offset,
             order: [["createdAt", "DESC"]],

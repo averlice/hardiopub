@@ -52,10 +52,6 @@ export const POST: RequestHandler = async (event) => {
         throw error(403, "You are banned");
     }
 
-    if (!event.locals.user.isTrusted) {
-        throw error(403, "You must be trusted to send messages");
-    }
-
     const stream = await Stream.findByPk(event.params.id);
     if (!stream) {
         throw error(404, "Stream not found");

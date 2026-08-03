@@ -61,7 +61,7 @@
         {/each}
     </div>
 
-    {#if onSendMessage && user && !user.isBanned && user.isTrusted}
+    {#if onSendMessage && user && !user.isBanned}
         <form class="chat-form" on:submit|preventDefault={submitChat}>
             <label for="chat-input-{streamId}">Send a message:</label>
             <textarea
@@ -77,8 +77,6 @@
         <p class="login-prompt">
             <a href="/login">Log in</a> to send messages
         </p>
-    {:else if user && !user.isTrusted}
-        <p class="trust-prompt">You must be trusted to send messages.</p>
     {/if}
 </section>
 
@@ -109,12 +107,6 @@
     .login-prompt {
         text-align: center;
         color: #666;
-    }
-
-    .trust-prompt {
-        text-align: center;
-        color: #999;
-        font-style: italic;
     }
 
     .chat-form {

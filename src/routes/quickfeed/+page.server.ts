@@ -94,7 +94,6 @@ export const load: PageServerLoad = async (event) => {
         },
         include: {
             model: User,
-            where: event.locals.user?.isAdmin ? {} : { isTrusted: true },
         },
         order: [["createdAt", "ASC"]],
     });

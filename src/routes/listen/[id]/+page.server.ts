@@ -46,11 +46,20 @@ export const load: PageServerLoad = async (event) => {
         return error(404, "Not found");
     }
 
+    const viewer = event.locals.user;
+    if (
+        audio.user &&
+        !audio.user.isTrusted &&
+        !viewer?.isAdmin &&
+        viewer?.id !== audio.userId
+    ) {
+        return error(404, "Not found");
+    }
+
     const comments = await Comment.findAll({
         where: { audioId: audio.id },
         include: {
             model: User,
-            where: event.locals.user?.isAdmin ? {} : { isTrusted: true },
         },
         // order: [["createdAt", "ASC"]],
     });

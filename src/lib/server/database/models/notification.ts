@@ -167,10 +167,6 @@ export default class Notification extends Model {
 
             const actor = n.actorId ? actorMap.get(n.actorId) : undefined;
 
-            if (actor && !actor.isTrusted) {
-                continue;
-            }
-
             resolved.push({
                 id: n.id,
                 userId: n.userId,

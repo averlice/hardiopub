@@ -1797,11 +1797,6 @@
                             method="POST"
                             class="comment-form"
                         >
-                            {#if !currentUser.isTrusted}
-                                <p class="warning">
-                                    You're not trusted yet. Your comments will be reviewed before being shown.
-                                </p>
-                            {/if}
                             <textarea 
                                 name="comment" 
                                 placeholder="Add a comment..." 
