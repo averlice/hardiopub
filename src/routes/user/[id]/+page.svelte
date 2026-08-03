@@ -25,9 +25,31 @@
     import { onMount } from "svelte";
     export let data;
     onMount(() => title.set(`${data.profileUser.displayName}'s Profile`));
+
+    function onShareClick() {
+        const url = `${window.location.origin}/user/@${encodeURIComponent(data.profileUser.name)}`;
+        if (navigator.share) {
+            navigator
+                .share({
+                    title: `${data.profileUser.displayName}'s Profile`,
+                    url,
+                })
+                .catch((error) => console.log("Error sharing", error));
+        } else {
+            navigator.clipboard
+                .writeText(url)
+                .then(() => {
+                    alert("Link copied to clipboard");
+                })
+                .catch((err) => {
+                    console.error("Could not copy text: ", err);
+                });
+        }
+    }
 </script>
 
 <h1>{data.profileUser.displayName}'s Profile</h1>
+<button on:click={onShareClick}>Share profile</button>
 
 <table>
     <tbody>
@@ -95,7 +117,7 @@
     groupThreshold={0}
     page={data.page}
     totalPages={data.totalPages}
-    paginationBaseUrl={`/user/${data.profileUser.id}`}
+    paginationBaseUrl={`/user/@${encodeURIComponent(data.profileUser.name)}`}
 />
 
 <style>

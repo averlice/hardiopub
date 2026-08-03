@@ -46,7 +46,7 @@
             {#each data.untrustedUsers as u}
                 <tr>
                     <td>
-                        <a href="/user/{u.id}">{u.name}</a>
+                        <a href="/user/@{encodeURIComponent(u.name)}">{u.name}</a>
                     </td>
                     <td>{u.displayName}</td>
                     <td>{u.email}</td>

@@ -39,7 +39,7 @@
 
 <article class="chat-message">
     <h3 class="chat-header">
-        <a href="/user/{chat.user.id}" class="username"
+        <a href="/user/@{encodeURIComponent(chat.user.name)}" class="username"
             >{chat.user.displayName}</a
         >
         <span class="chat-date">{chatDate}</span>

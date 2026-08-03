@@ -43,7 +43,7 @@
       <span style="color: red">(Pending review)</span> |{" "}
     {/if}
 
-    <a href={`/user/${comment.user.id}`}>{comment.user.displayName}</a>
+    <a href={`/user/@${encodeURIComponent(comment.user.name)}`}>{comment.user.displayName}</a>
     <span class="comment-date"> - {commentDate}</span>
   </h3>
   <SafeMarkdown source={comment.content} />
