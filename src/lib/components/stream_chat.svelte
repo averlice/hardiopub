@@ -25,16 +25,30 @@
     export let chat: ClientsideStreamChat;
     export let isAdmin: boolean = false;
     export let onDelete: ((chatId: string) => void) | null = null;
+    export let onMute:
+        | ((chat: ClientsideStreamChat, durationMinutes: number | null) => void)
+        | null = null;
     export let streamOwnerId: string | null = null;
     export let currentUser: ClientsideUser | null = null;
 
     let isDeletionModalVisible: boolean = false;
+    let isMuteModalVisible: boolean = false;
+    let muteDuration: string = "5";
 
     $: isOwnMessage = currentUser !== null && currentUser.id === chat.user.id;
     $: isStreamOwner = currentUser !== null && streamOwnerId === currentUser.id;
     $: canDelete =
         onDelete !== null && (isOwnMessage || isStreamOwner || isAdmin);
+    $: canMute = onMute !== null && (isStreamOwner || isAdmin);
     $: chatDate = formatRelative(new Date(chat.createdAt), new Date());
+
+    function confirmMute() {
+        const duration =
+            muteDuration === "permanent" ? null : Number(muteDuration);
+        if (onMute) onMute(chat, duration);
+        isMuteModalVisible = false;
+        muteDuration = "5";
+    }
 </script>
 
 <article class="chat-message">
@@ -45,6 +59,36 @@
         <span class="chat-date">{chatDate}</span>
     </h3>
     <SafeMarkdown source={chat.content} />
+
+    {#if canMute}
+        <button on:click={() => (isMuteModalVisible = true)}>Mute Sender</button>
+        <Modal bind:visible={isMuteModalVisible}>
+            <h2>Mute this user?</h2>
+            <p>
+                They won't be able to send messages in this stream for the
+                chosen duration. Choose "Permanent" to ban them from this
+                chat entirely.
+            </p>
+            <label class="mute-duration" for="mute-duration-select">
+                Duration:
+            </label>
+            <select
+                id="mute-duration-select"
+                bind:value={muteDuration}
+            >
+                <option value="5">5 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 hour</option>
+                <option value="300">5 hours</option>
+                <option value="600">10 hours</option>
+                <option value="permanent">Permanent</option>
+            </select>
+            <button on:click={() => (isMuteModalVisible = false)}
+                >Cancel</button
+            >
+            <button on:click={confirmMute}>Confirm mute</button>
+        </Modal>
+    {/if}
 
     {#if canDelete}
         <button on:click={() => (isDeletionModalVisible = true)}>Delete</button>
@@ -94,5 +138,9 @@
     .chat-date {
         font-size: 0.8em;
         color: #999;
+    }
+
+    .mute-duration {
+        margin-right: 0.5rem;
     }
 </style>

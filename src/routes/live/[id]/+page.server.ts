@@ -16,9 +16,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { Stream, User, StreamChat, Audio } from "$lib/server/database";
+import {
+    Stream,
+    User,
+    StreamChat,
+    Audio,
+    StreamMute,
+} from "$lib/server/database";
 import { error, redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
+import { Op } from "sequelize";
+import type { ClientsideStreamMute } from "$lib/types";
 
 export const load: PageServerLoad = async (event) => {
     const stream = await Stream.findByPk(event.params.id, {
@@ -37,8 +45,38 @@ export const load: PageServerLoad = async (event) => {
         return redirect(302, `/listen/${event.params.id}`);
     }
 
+    const viewer = event.locals.user;
+    const canModerate =
+        viewer && (viewer.id === stream.userId || viewer.isAdmin);
+
+    let mutes: ClientsideStreamMute[] = [];
+    if (canModerate) {
+        const muteRows = await StreamMute.findAll({
+            where: {
+                streamId: stream.id,
+                [Op.or]: [
+                    { expiresAt: null },
+                    { expiresAt: { [Op.gt]: new Date() } },
+                ],
+            },
+            include: [User],
+            order: [["createdAt", "DESC"]],
+        });
+        mutes = muteRows.map((m) => ({
+            id: m.id,
+            userId: m.userId,
+            userName: m.user?.name ?? "unknown",
+            displayName: m.user?.displayName ?? "Unknown",
+            expiresAt: m.expiresAt ? m.expiresAt.getTime() : null,
+            reason: m.reason,
+            createdAt: m.createdAt.getTime(),
+        }));
+    }
+
     return {
         stream: stream.toClientside(true),
         chats: stream.streamChats?.map((c) => c.toClientside()),
+        mutes,
+        slowModeSeconds: stream.slowModeSeconds,
     };
 };

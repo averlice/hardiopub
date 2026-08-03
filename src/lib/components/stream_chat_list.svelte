@@ -23,17 +23,30 @@
     export let streamId: string;
     export let chats: ClientsideStreamChat[] = [];
     export let user: ClientsideUser | null = null;
-    export let onSendMessage: ((content: string) => void) | null = null;
+    export let onSendMessage:
+        | ((content: string) => Promise<boolean> | boolean)
+        | null = null;
     export let isAdmin: boolean = false;
     export let onDelete: ((chatId: string) => void) | null = null;
+    export let onMute:
+        | ((chat: ClientsideStreamChat, durationMinutes: number | null) => void)
+        | null = null;
     export let streamOwnerId: string | null = null;
+    export let notice: string = "";
 
     let messageText = "";
-    function submitChat() {
+    async function submitChat() {
         const text = messageText.trim();
         if (!text || !onSendMessage) return;
-        onSendMessage(text);
-        messageText = "";
+        try {
+            // Only clear the input once the message was actually sent, so the
+            // text survives rejections like slow mode.
+            if (await onSendMessage(text)) {
+                messageText = "";
+            }
+        } catch {
+            // Keep the text so the user can retry.
+        }
     }
 
     function handleKeydown(e: KeyboardEvent) {
@@ -53,6 +66,7 @@
                 {chat}
                 {isAdmin}
                 {onDelete}
+                {onMute}
                 {streamOwnerId}
                 currentUser={user}
             />
@@ -60,6 +74,10 @@
             <p class="no-chats">No messages yet</p>
         {/each}
     </div>
+
+    {#if notice}
+        <p class="chat-notice" role="status">{notice}</p>
+    {/if}
 
     {#if onSendMessage && user && !user.isBanned}
         <form class="chat-form" on:submit|preventDefault={submitChat}>
@@ -102,6 +120,16 @@
     .no-chats {
         color: #999;
         font-style: italic;
+    }
+
+    .chat-notice {
+        margin: 0 0 0.5rem;
+        padding: 0.5rem;
+        background: #fff3cd;
+        border: 1px solid #ffeeba;
+        border-radius: 4px;
+        color: #856404;
+        font-size: 0.9rem;
     }
 
     .login-prompt {

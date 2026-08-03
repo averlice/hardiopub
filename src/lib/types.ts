@@ -47,6 +47,16 @@ export interface ClientsideStreamChat {
     stream?: ClientsideStream;
 }
 
+export interface ClientsideStreamMute {
+    id: string;
+    userId: string;
+    userName: string;
+    displayName: string;
+    expiresAt: number | null;
+    reason: string | null;
+    createdAt: number;
+}
+
 export interface ClientsideAudio {
     id: string;
     title: string;
