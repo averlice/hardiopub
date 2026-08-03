@@ -52,6 +52,10 @@ export const POST: RequestHandler = async (event) => {
         throw error(403, "You are banned");
     }
 
+    if (!event.locals.user.isVerified) {
+        throw error(403, "Please verify your email before sending messages");
+    }
+
     const stream = await Stream.findByPk(event.params.id);
     if (!stream) {
         throw error(404, "Stream not found");

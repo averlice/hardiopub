@@ -199,6 +199,12 @@ export const actions: Actions = {
             return fail(403, { message: "Banned users cannot comment" });
         }
 
+        if (!user.isVerified) {
+            return fail(403, {
+                message: "Please verify your email before commenting.",
+            });
+        }
+
         const formData = await event.request.formData();
         const audioId = formData.get("audioId") as string;
         const comment = formData.get("comment") as string;
