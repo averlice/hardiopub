@@ -81,6 +81,8 @@
     }
 
     function onKeydown(event: KeyboardEvent) {
+        if (event.altKey || event.ctrlKey || event.metaKey) return;
+
         // Don't hijack keys while focus is on the sliders themselves.
         const target = event.target as HTMLElement;
         if (target?.tagName === "INPUT") return;

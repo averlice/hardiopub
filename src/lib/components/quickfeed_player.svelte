@@ -1221,6 +1221,10 @@
             console.log('⏭️ Skipping shortcuts - modal open or input focused');
             return;
         }
+
+        if (event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
         
         switch (event.key) {
             case 'ArrowUp':
