@@ -93,6 +93,7 @@ export enum NotificationType {
 
 export enum NotificationTargetType {
     audio = "audio",
+    stream = "stream",
     comment = "comment",
 }
 
@@ -113,7 +114,7 @@ export interface ClientsideResolvedNotification {
     userId: string | null;
     type: NotificationType;
     targetType: NotificationTargetType;
-    target?: ClientsideAudio | ClientsideComment | null;
+    target?: ClientsideAudio | ClientsideStream | ClientsideComment | null;
     metadata?: any;
     actor?: ClientsideUser;
     readAt?: number;

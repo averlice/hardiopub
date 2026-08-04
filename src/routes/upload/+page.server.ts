@@ -90,15 +90,15 @@ export const actions: Actions = {
         });
 
         const subscriptions = await Subscription.findAll({ where: { subscribedToId: event.locals.user?.id } });
-        subscriptions.forEach(async subscription => {
+        for (const subscription of subscriptions) {
             await Notification.create({
                 userId: subscription.subscriberId,
-                actorId: subscription.subscribedToId,
+                actorId: user.id,
                 type: NotificationType.upload,
-                targetType: NotificationTargetType.audio,
+                targetType: NotificationTargetType.stream,
                 targetId: audio.id,
-            })
-        })
+            });
+        }
 
         return redirect(303, `/listen/${audio.id}`);
     },
