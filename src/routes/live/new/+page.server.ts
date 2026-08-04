@@ -18,8 +18,8 @@
  */
 import { error, redirect } from "@sveltejs/kit";
 import type { PageServerLoad, Actions } from "./$types";
-import { Stream } from "$lib/server/database";
-import { StreamState } from "$lib/types";
+import { Notification, Stream, Subscription } from "$lib/server/database";
+import { NotificationTargetType, NotificationType, StreamState } from "$lib/types";
 import { v4 as uuidv4 } from "uuid";
 import { Op } from "sequelize";
 
@@ -101,6 +101,17 @@ export const actions: Actions = {
             shouldArchive,
             format: null,
         });
+
+        const subscriptions = await Subscription.findAll({ where: { subscribedToId: event.locals.user?.id } });
+        for (const subscription of subscriptions) {
+            await Notification.create({
+                userId: subscription.subscriberId,
+                actorId: user.id,
+                type: NotificationType.upload,
+                targetType: NotificationTargetType.stream,
+                targetId: stream.id,
+            });
+        }
 
         return redirect(303, `/live/${stream.id}`);
     },

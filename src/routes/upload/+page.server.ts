@@ -20,8 +20,9 @@ import fs from "fs/promises";
 import path from "path";
 import { error, fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { Audio } from "$lib/server/database";
+import { Audio, Notification, Subscription } from "$lib/server/database";
 import transcode from "$lib/server/transcode";
+import { NotificationTargetType, NotificationType } from "$lib/types";
 
 export const load: PageServerLoad = (event) => {
     const user = event.locals.user;
@@ -87,6 +88,18 @@ export const actions: Actions = {
             await audio.destroy();
             await fs.unlink(audio.path);
         });
+
+        const subscriptions = await Subscription.findAll({ where: { subscribedToId: event.locals.user?.id } });
+        for (const subscription of subscriptions) {
+            await Notification.create({
+                userId: subscription.subscriberId,
+                actorId: user.id,
+                type: NotificationType.upload,
+                targetType: NotificationTargetType.stream,
+                targetId: audio.id,
+            });
+        }
+
         return redirect(303, `/listen/${audio.id}`);
     },
 };

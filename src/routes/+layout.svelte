@@ -154,6 +154,7 @@
                         >
                     {/if}
                 </a>
+                <a href="/subscriptions">Subscriptions</a>
                 <a href="/favorites">Favorites</a>
                 <a href="/profile">Profile</a>
                 {#if data.isAdmin}
