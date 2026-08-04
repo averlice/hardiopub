@@ -46,7 +46,7 @@ const database = new Sequelize({
     dialect: "mariadb",
     username: process.env.DATABASE_USER,
     password: process.env.DATABASE_PASSWORD,
-    models: [User, Audio, Comment, PlaysTracker, Notification, AudioFollow, AudioFavorite, Stream, StreamChat, StreamMute],
+    models: [User, Audio, Comment, PlaysTracker, Notification, AudioFollow, AudioFavorite, Stream, StreamChat, StreamMute, Subscription],
     logging: false,
     host: "127.0.0.1",
     port: 3306,
