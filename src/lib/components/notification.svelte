@@ -76,6 +76,15 @@
             favorited <a {href}>{(audio as any).title}</a>
             <span class="comment-date"> - {relativeTime}</span>
         </h3>
+    {:else if notification.type == NotificationType.upload && notification.targetType == NotificationTargetType.audio}
+        {@const audio = notification.target}
+        <h3>
+            <a href={notification.actor ? `/user/@${encodeURIComponent(notification.actor.name)}` : undefined}>
+                {notification.actor?.displayName}
+            </a>
+            uploaded a new audio <a {href}>{(audio as any).title}</a>
+            <span class="comment-date"> - {relativeTime}</span>
+        </h3>
     {:else if notification.type === NotificationType.system}
         <h3>
             {notification.metadata?.title || "System"}
