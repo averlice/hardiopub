@@ -24,7 +24,7 @@ import { EventEmitter } from "node:events";
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import type { ClientsideStreamChat } from "$lib/types";
+import type { ClientsideStreamChat, ClientsideStreamMute } from "$lib/types";
 import { StreamState, StreamFormat } from "$lib/types";
 
 const execFileAsync = promisify(execFile);
@@ -81,6 +81,22 @@ export class StreamingService extends EventEmitter {
             activeListeners,
             peekListeners,
         } as StreamListenersChangedEvent);
+    }
+
+    notifyModerationChanged(
+        streamId: string,
+        kind: "mute" | "unmute" | "slowmode",
+        userId?: string,
+        slowModeSeconds?: number,
+        mute?: ClientsideStreamMute,
+    ) {
+        this.emit(STREAM_MODERATION_CHANGED, {
+            streamId,
+            kind,
+            userId,
+            slowModeSeconds,
+            mute,
+        } as StreamModerationChangedEvent);
     }
 
     notifyDestroyed(
@@ -557,6 +573,7 @@ export const STREAM_CHAT_DELETED = "stream:chat_deleted";
 export const STREAM_ARCHIVED = "stream:archived";
 export const STREAM_DESTROYED = "stream:destroyed";
 export const STREAM_LISTENERS_CHANGED = "stream:listeners_changed";
+export const STREAM_MODERATION_CHANGED = "stream:moderation_changed";
 
 export interface StreamEvent {
     streamId: string;
@@ -578,6 +595,13 @@ export interface StreamChatDeletedEvent extends StreamEvent {
 export interface StreamListenersChangedEvent extends StreamEvent {
     activeListeners: number;
     peekListeners: number;
+}
+
+export interface StreamModerationChangedEvent extends StreamEvent {
+    kind: "mute" | "unmute" | "slowmode";
+    userId?: string;
+    slowModeSeconds?: number;
+    mute?: ClientsideStreamMute;
 }
 
 export interface StreamArchivedEvent extends StreamEvent {

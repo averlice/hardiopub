@@ -18,8 +18,9 @@
  */
 import { json, error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
-import { Stream, StreamChat, User } from "$lib/server/database";
+import { Stream, StreamChat, User, StreamMute } from "$lib/server/database";
 import { streamingService } from "$lib/server/streaming";
+import { Op } from "sequelize";
 
 export const DELETE: RequestHandler = async (event) => {
     if (!event.locals.user) {
@@ -52,8 +53,8 @@ export const POST: RequestHandler = async (event) => {
         throw error(403, "You are banned");
     }
 
-    if (!event.locals.user.isTrusted) {
-        throw error(403, "You must be trusted to send messages");
+    if (!event.locals.user.isVerified) {
+        throw error(403, "Please verify your email before sending messages");
     }
 
     const stream = await Stream.findByPk(event.params.id);
@@ -63,6 +64,41 @@ export const POST: RequestHandler = async (event) => {
 
     if (stream.state === "finished") {
         throw error(400, "Stream has ended");
+    }
+
+    const activeMute = await StreamMute.findOne({
+        where: {
+            streamId: stream.id,
+            userId: event.locals.user.id,
+            [Op.or]: [
+                { expiresAt: null },
+                { expiresAt: { [Op.gt]: new Date() } },
+            ],
+        },
+    });
+    if (activeMute) {
+        throw error(403, "You are muted in this stream");
+    }
+
+    if (stream.slowModeSeconds > 0) {
+        const lastMessage = await StreamChat.findOne({
+            where: { streamId: stream.id, userId: event.locals.user.id },
+            order: [["createdAt", "DESC"]],
+        });
+        if (lastMessage) {
+            const elapsed = Date.now() - lastMessage.createdAt.getTime();
+            if (elapsed < stream.slowModeSeconds * 1000) {
+                const waitSeconds = Math.ceil(
+                    (stream.slowModeSeconds * 1000 - elapsed) / 1000,
+                );
+                throw error(
+                    429,
+                    `Slow mode is on. Please wait ${waitSeconds} second${
+                        waitSeconds === 1 ? "" : "s"
+                    }.`,
+                );
+            }
+        }
     }
 
     const body = await event.request.json();
@@ -89,4 +125,112 @@ export const POST: RequestHandler = async (event) => {
     streamingService.notifyChatSent(stream.id, clientsideChat);
 
     return json(clientsideChat);
+};
+
+// Moderation controls for the stream owner (or an admin)
+export const PUT: RequestHandler = async (event) => {
+    const user = event.locals.user;
+    if (!user) {
+        throw error(401, "You must be logged in");
+    }
+
+    const stream = await Stream.findByPk(event.params.id);
+    if (!stream) {
+        throw error(404, "Stream not found");
+    }
+
+    if (stream.state === "finished") {
+        throw error(400, "Stream already ended");
+    }
+
+    if (user.id !== stream.userId && !user.isAdmin) {
+        throw error(403, "Not authorized");
+    }
+
+    const body = await event.request.json();
+    const action = body?.action as string | undefined;
+
+    if (action === "mute") {
+        const targetId = body.userId as string | undefined;
+        if (!targetId || typeof targetId !== "string") {
+            throw error(400, "Missing user id");
+        }
+        const target = await User.findByPk(targetId);
+        if (!target) {
+            throw error(404, "User not found");
+        }
+        if (target.id === stream.userId) {
+            throw error(400, "You cannot mute the stream owner");
+        }
+        if (target.isAdmin) {
+            throw error(400, "You cannot mute an admin");
+        }
+
+        // durationMinutes null means permanent (a ban from this stream)
+        const durationMinutes = body.durationMinutes;
+        const duration =
+            durationMinutes == null ? null : Number(durationMinutes);
+        if (duration !== null && (!Number.isFinite(duration) || duration <= 0)) {
+            throw error(400, "Invalid mute duration");
+        }
+        const expiresAt =
+            duration === null
+                ? null
+                : new Date(Date.now() + duration * 60 * 1000);
+
+        const existing = await StreamMute.findOne({
+            where: { streamId: stream.id, userId: targetId },
+        });
+        if (existing) {
+            existing.expiresAt = expiresAt;
+            await existing.save();
+        } else {
+            await StreamMute.create({
+                streamId: stream.id,
+                userId: targetId,
+                expiresAt,
+                createdBy: user.id,
+            });
+        }
+        streamingService.notifyModerationChanged(stream.id, "mute", targetId, undefined, {
+            id: existing?.id ?? crypto.randomUUID(),
+            userId: target.id,
+            userName: target.name,
+            displayName: target.displayName,
+            expiresAt: expiresAt ? expiresAt.getTime() : null,
+            reason: null,
+            createdAt: Date.now(),
+        });
+        return json({ success: true });
+    }
+
+    if (action === "unmute") {
+        const targetId = body.userId as string | undefined;
+        if (!targetId) {
+            throw error(400, "Missing user id");
+        }
+        await StreamMute.destroy({
+            where: { streamId: stream.id, userId: targetId },
+        });
+        streamingService.notifyModerationChanged(stream.id, "unmute", targetId);
+        return json({ success: true });
+    }
+
+    if (action === "slowmode") {
+        const seconds = Number(body.seconds);
+        if (!Number.isInteger(seconds) || seconds < 0 || seconds > 3600) {
+            throw error(400, "Invalid slow mode duration");
+        }
+        stream.slowModeSeconds = seconds;
+        await stream.save();
+        streamingService.notifyModerationChanged(
+            stream.id,
+            "slowmode",
+            undefined,
+            seconds,
+        );
+        return json({ success: true });
+    }
+
+    throw error(400, "Unknown action");
 };

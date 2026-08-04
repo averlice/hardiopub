@@ -1221,6 +1221,10 @@
             console.log('⏭️ Skipping shortcuts - modal open or input focused');
             return;
         }
+
+        if (event.altKey || event.ctrlKey || event.metaKey) {
+            return;
+        }
         
         switch (event.key) {
             case 'ArrowUp':
@@ -1657,7 +1661,7 @@
                         <h2>{audio.title}</h2>
                         {#if audio.user}
                             <p class="author">
-                                <a href="/user/{audio.user.id}">@{audio.user.displayName}</a>
+                                <a href="/user/@{encodeURIComponent(audio.user.name)}">@{audio.user.displayName}</a>
                             </p>
                         {/if}
                         <div class="description">
@@ -1797,11 +1801,6 @@
                             method="POST"
                             class="comment-form"
                         >
-                            {#if !currentUser.isTrusted}
-                                <p class="warning">
-                                    You're not trusted yet. Your comments will be reviewed before being shown.
-                                </p>
-                            {/if}
                             <textarea 
                                 name="comment" 
                                 placeholder="Add a comment..." 

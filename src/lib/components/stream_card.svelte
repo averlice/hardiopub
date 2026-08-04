@@ -40,7 +40,7 @@
     {#if stream.user}
         <p class="streamer">
             Streaming by
-            <a href="/user/{stream.user.id}">{stream.user.displayName}</a>
+            <a href="/user/@{encodeURIComponent(stream.user.name)}">{stream.user.displayName}</a>
         </p>
     {/if}
 

@@ -21,12 +21,17 @@
 
     import { onMount, tick } from "svelte";
     import StreamChatList from "$lib/components/stream_chat_list.svelte";
+    import AudioPlayer from "$lib/components/audio_player.svelte";
     import ChatReader from "$lib/components/chat_reader.svelte";
-    import type { ClientsideStreamChat } from "$lib/types";
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
+    import Modal from "$lib/components/modal.svelte";
     import { fade, slide } from "svelte/transition";
     import { enhance } from "$app/forms";
     import title from "$lib/title";
+    import type {
+        ClientsideStreamChat,
+        ClientsideStreamMute,
+    } from "$lib/types";
 
     onMount(() => title.set(data.stream.title));
 
@@ -50,6 +55,25 @@
     let chats = (data.chats ?? []) as ClientsideStreamChat[];
     let latestChat: ClientsideStreamChat | null = null;
     let eventSource: EventSource | null = null;
+
+    let mutes = (data.mutes ?? []) as ClientsideStreamMute[];
+    let slowModeSeconds = data.slowModeSeconds ?? 0;
+    let slowModeValue = String(slowModeSeconds);
+    let chatNotice = "";
+    let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function setChatNotice(message: string, durationMs = 4000) {
+        if (noticeTimer) {
+            clearTimeout(noticeTimer);
+            noticeTimer = null;
+        }
+        chatNotice = message;
+        if (!message) return;
+        noticeTimer = setTimeout(() => {
+            chatNotice = "";
+            noticeTimer = null;
+        }, durationMs);
+    }
 
     function connectSSE() {
         eventSource = new EventSource(`/live/${data.stream.id}/events`);
@@ -87,6 +111,36 @@
             chats = chats.filter((c) => c.id !== chatId);
         });
 
+        eventSource.addEventListener("moderation", (e) => {
+            const d = JSON.parse(e.data);
+            if (d.kind === "mute") {
+                if (d.userId === data.user?.id) {
+                    setChatNotice("You have been muted in this stream.");
+                }
+                if (d.mute) {
+                    mutes = [
+                        d.mute,
+                        ...mutes.filter((m) => m.userId !== d.mute.userId),
+                    ];
+                }
+            } else if (d.kind === "unmute") {
+                if (d.userId === data.user?.id) {
+                    setChatNotice("");
+                }
+                mutes = mutes.filter((m) => m.userId !== d.userId);
+            } else if (d.kind === "slowmode") {
+                slowModeSeconds = d.slowModeSeconds ?? 0;
+                slowModeValue = String(slowModeSeconds);
+                setChatNotice(
+                    d.slowModeSeconds > 0
+                        ? `Slow mode is on: ${d.slowModeSeconds} second${
+                              d.slowModeSeconds === 1 ? "" : "s"
+                          } between messages.`
+                        : "",
+                );
+            }
+        });
+
         eventSource.onerror = () => {
             if (eventSource?.readyState === EventSource.CLOSED) {
                 streamEnded = true;
@@ -97,16 +151,74 @@
         };
     }
 
+    let showEndConfirm = false;
+
     function handleEndStream() {
+        showEndConfirm = false;
         fetch(`/live/${data.stream.id}`, { method: "DELETE" });
     }
 
-    function handleSendMessage(content: string) {
+    async function handleSendMessage(content: string): Promise<boolean> {
+        let res: Response;
+        try {
+            res = await fetch(`/live/${data.stream.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content }),
+            });
+        } catch {
+            setChatNotice("Could not send message.");
+            return false;
+        }
+        if (!res.ok) {
+            let message = "Could not send message.";
+            try {
+                const body = await res.json();
+                if (typeof body?.message === "string") {
+                    message = body.message;
+                }
+            } catch {}
+            setChatNotice(message);
+            return false;
+        }
+        return true;
+    }
+
+    function handleMute(
+        chat: ClientsideStreamChat,
+        durationMinutes: number | null,
+    ) {
         fetch(`/live/${data.stream.id}`, {
-            method: "POST",
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify({
+                action: "mute",
+                userId: chat.user.id,
+                durationMinutes,
+            }),
         });
+    }
+
+    async function unmuteUser(userId: string) {
+        // The moderation SSE event removes the user from the list everywhere.
+        await fetch(`/live/${data.stream.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "unmute", userId }),
+        });
+    }
+
+    async function saveSlowMode() {
+        const seconds = Number(slowModeValue);
+        if (slowModeSeconds === seconds) return;
+        const res = await fetch(`/live/${data.stream.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "slowmode", seconds }),
+        });
+        if (res.ok) {
+            slowModeSeconds = seconds;
+        }
     }
 
     function handleDeleteChat(chatId: string) {
@@ -117,7 +229,7 @@
         latestChat = chat;
     }
 
-    function iOS() : boolean {
+    function iOS(): boolean {
         return (
             [
                 "iPad Simulator",
@@ -154,6 +266,10 @@
     onMount(() => {
         connectSSE();
         return () => {
+            if (noticeTimer) {
+                clearTimeout(noticeTimer);
+                noticeTimer = null;
+            }
             player?.stop();
             player?.detachAudioElement();
             eventSource?.close();
@@ -178,9 +294,7 @@
         </button>
     {:else}
         <div transition:slide={{ duration: 300 }}>
-            <audio controls id="player" bind:this={audioEl}>
-                <p>Your browser doesn't support the audio element.</p>
-            </audio>
+            <AudioPlayer live bind:audioElement={audioEl} />
         </div>
     {/if}
 </div>
@@ -197,7 +311,8 @@
 
     {#if data.stream.user}
         <p>
-            Streaming by: <a href="/user/{data.stream.user.id}"
+            Streaming by: <a
+                href="/user/@{encodeURIComponent(data.stream.user.name)}"
                 >{data.stream.user.displayName}</a
             >
         </p>
@@ -206,9 +321,83 @@
     <p>Started: {new Date(data.stream.createdAt).toLocaleString()}</p>
 
     {#if isOwnerOrAdmin}
-        <button class="end-stream-button" on:click={handleEndStream}>
+        <button
+            class="end-stream-button"
+            on:click={() => (showEndConfirm = true)}
+        >
             End Stream
         </button>
+    {/if}
+
+    <Modal bind:visible={showEndConfirm}>
+        <h2>End stream?</h2>
+        <p>
+            This will end the stream immediately. This action cannot be undone.
+        </p>
+        <div class="modal-actions">
+            <button type="button" on:click={() => (showEndConfirm = false)}
+                >Cancel</button
+            >
+            <button type="button" on:click={handleEndStream}>End Stream</button>
+        </div>
+    </Modal>
+
+    {#if isOwnerOrAdmin}
+        <details class="moderation-panel">
+            <summary>Moderation</summary>
+
+            <div class="mod-setting">
+                <label for="slowmode-select">Slow mode</label>
+                <select
+                    id="slowmode-select"
+                    bind:value={slowModeValue}
+                    on:change={saveSlowMode}
+                >
+                    <option value="0">Off</option>
+                    <option value="5">5 seconds</option>
+                    <option value="15">15 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">60 seconds</option>
+                </select>
+                <span class="mod-hint">
+                    Minimum time each user must wait between messages.
+                </span>
+            </div>
+
+            <div class="mod-mutes">
+                <h3>Muted users</h3>
+                {#if mutes.length === 0}
+                    <p class="mod-empty">No muted users.</p>
+                {:else}
+                    <ul>
+                        {#each mutes as mute}
+                            <li>
+                                <a
+                                    href="/user/@{encodeURIComponent(
+                                        mute.userName,
+                                    )}">{mute.displayName}</a
+                                >
+                                <span class="mute-info">
+                                    {#if mute.expiresAt}
+                                        until {new Date(
+                                            mute.expiresAt,
+                                        ).toLocaleString()}
+                                    {:else}
+                                        permanently
+                                    {/if}
+                                </span>
+                                <button
+                                    type="button"
+                                    class="unmute-button"
+                                    on:click={() => unmuteUser(mute.userId)}
+                                    >Unmute</button
+                                >
+                            </li>
+                        {/each}
+                    </ul>
+                {/if}
+            </div>
+        </details>
     {/if}
 
     {#if data.stream.description}
@@ -223,8 +412,10 @@
     user={data.user}
     isAdmin={data.isAdmin}
     onDelete={handleDeleteChat}
+    onMute={handleMute}
     streamOwnerId={data.stream.user?.id ?? null}
     onSendMessage={handleSendMessage}
+    notice={chatNotice}
 />
 
 <ChatReader chat={latestChat} />
@@ -259,11 +450,6 @@
     .play-button:hover {
         background-color: #0056b3;
         transform: scale(1.05);
-    }
-
-    .stream-player audio {
-        width: 100%;
-        margin-bottom: 0.5rem;
     }
 
     .stream-ended {
@@ -327,5 +513,109 @@
 
     .end-stream-button:hover {
         background-color: #a71d2a;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .moderation-panel {
+        margin-top: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 0.5rem 1rem 1rem;
+        background-color: #f9f9f9;
+    }
+
+    .moderation-panel summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #333;
+        padding: 0.25rem 0;
+    }
+
+    .mod-setting {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+    }
+
+    .mod-setting label {
+        font-weight: 600;
+        color: #555;
+    }
+
+    .mod-setting select {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .mod-hint {
+        color: #888;
+        font-size: 0.85rem;
+    }
+
+    .mod-mutes {
+        margin-top: 1rem;
+    }
+
+    .mod-mutes h3 {
+        margin: 0 0 0.5rem;
+        color: #333;
+        font-size: 1rem;
+    }
+
+    .mod-mutes ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .mod-mutes li {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .mod-mutes li:last-child {
+        border-bottom: none;
+    }
+
+    .mod-mutes a {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .mute-info {
+        color: #888;
+        font-size: 0.85rem;
+    }
+
+    .unmute-button {
+        margin-left: auto;
+        padding: 0.25rem 0.75rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+        color: #333;
+        cursor: pointer;
+    }
+
+    .unmute-button:hover {
+        background: #f1f1f1;
+    }
+
+    .mod-empty {
+        color: #999;
+        font-style: italic;
+        margin: 0;
     }
 </style>

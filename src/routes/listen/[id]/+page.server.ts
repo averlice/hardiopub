@@ -25,6 +25,7 @@ import {
     Notification,
     Stream,
     StreamChat,
+    Subscription,
 } from "$lib/server/database";
 import AudioFavorite from "$lib/server/database/models/audio_favorite";
 import { error, fail, redirect } from "@sveltejs/kit";
@@ -32,7 +33,6 @@ import type { Actions, PageServerLoad } from "./$types";
 import sendEmail from "$lib/server/email";
 import { json, Op, Sequelize } from "sequelize";
 import { Json } from "sequelize/lib/utils";
-import Subscription from "$lib/server/database/models/subscription";
 import { subscribe, unsubscribe } from "$lib/server/subscriptions";
 
 export const load: PageServerLoad = async (event) => {
@@ -48,11 +48,20 @@ export const load: PageServerLoad = async (event) => {
         return error(404, "Not found");
     }
 
+    const viewer = event.locals.user;
+    if (
+        audio.user &&
+        !audio.user.isTrusted &&
+        !viewer?.isAdmin &&
+        viewer?.id !== audio.userId
+    ) {
+        return error(404, "Not found");
+    }
+
     const comments = await Comment.findAll({
         where: { audioId: audio.id },
         include: {
             model: User,
-            where: event.locals.user?.isAdmin ? {} : { isTrusted: true },
         },
         // order: [["createdAt", "ASC"]],
     });
@@ -140,7 +149,7 @@ export const load: PageServerLoad = async (event) => {
         // Continue with default values
     }
 
-        const subscribers = await Subscription.count({
+            const subscribers = await Subscription.count({
             where: { subscribedToId: audio.userId }
         });
     

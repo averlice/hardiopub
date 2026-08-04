@@ -86,6 +86,12 @@ export default class Stream extends Model {
     @Column(DataType.BOOLEAN)
     declare shouldArchive: boolean;
 
+    // Seconds a user must wait between chat messages. 0 means disabled.
+    @AllowNull(false)
+    @Default(0)
+    @Column(DataType.INTEGER)
+    declare slowModeSeconds: number;
+
     @AllowNull(true)
     @Column(DataType.DATE)
     declare disconnectedAt: Date | null;

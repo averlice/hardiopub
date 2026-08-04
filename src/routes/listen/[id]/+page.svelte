@@ -27,13 +27,100 @@
     import SafeMarkdown from "$lib/components/safe_markdown.svelte";
     import type { ClientsideComment } from "$lib/types.js";
     import SubscribeButton from "$lib/components/subscribe_button.svelte";
+    import AudioPlayer from "$lib/components/audio_player.svelte";
 
     export let form: any;
+
+    type Chapter = {
+        time: number;
+        label: string;
+        timestamp: string;
+    };
+
+    type ChapterSection = {
+        chapters: Chapter[];
+        description: string;
+    };
+
+    let audioElement: HTMLAudioElement | undefined;
 
     onMount(() => title.set(data.audio.title));
     const handlePlay = () => {
         fetch(`/listen/${data.audio.id}/try_register_play`, { method: "POST" });
     };
+
+    function parseTimestamp(timestamp: string): number | null {
+        const parts = timestamp.split(":").map(Number);
+        if (parts.some((part) => !Number.isInteger(part))) return null;
+        if (parts.length === 2) {
+            const [minutes, seconds] = parts;
+            if (seconds > 59) return null;
+            return minutes * 60 + seconds;
+        }
+        if (parts.length === 3) {
+            const [hours, minutes, seconds] = parts;
+            if (minutes > 59 || seconds > 59) return null;
+            return hours * 3600 + minutes * 60 + seconds;
+        }
+        return null;
+    }
+
+    function parseChapterLines(lines: string[]): Chapter[] {
+        return lines
+            .map((line) => {
+                const match = line.match(
+                    /^\s*(?:[-*+]\s*|\d+[.)]\s*)?\[?((?:\d{1,2}:)?\d{1,2}:\d{2})\]?\s*(?:[-:]\s*)?(.*)$/,
+                );
+                if (!match) return null;
+
+                const time = parseTimestamp(match[1]);
+                if (time === null) return null;
+
+                return {
+                    time,
+                    timestamp: match[1],
+                    label: match[2].trim() || "Chapter",
+                };
+            })
+            .filter((chapter): chapter is Chapter => chapter !== null)
+            .sort((a, b) => a.time - b.time);
+    }
+
+    function extractChapterSection(description: string): ChapterSection {
+        const lines = description.split("\n");
+        const start = lines.findIndex((line) =>
+            /^#{1,6}\s+chapters\s*$/i.test(line.trim()),
+        );
+        if (start === -1) {
+            return { chapters: [], description };
+        }
+
+        const end = lines.findIndex(
+            (line, index) =>
+                index > start && /^#{1,6}\s+\S/.test(line.trim()),
+        );
+        const chapterLines = lines.slice(start + 1, end === -1 ? undefined : end);
+        const renderedDescription = [
+            ...lines.slice(0, start),
+            ...(end === -1 ? [] : lines.slice(end)),
+        ]
+            .join("\n")
+            .trim();
+
+        return {
+            chapters: parseChapterLines(chapterLines),
+            description: renderedDescription,
+        };
+    }
+
+    function seekToChapter(time: number) {
+        if (!audioElement) return;
+        audioElement.currentTime = time;
+    }
+
+    $: chapterSection = extractChapterSection(data.audio.description || "");
+    $: chapters = chapterSection.chapters;
+    $: renderedDescription = chapterSection.description;
 
     $: favoritesString = (() => {
         const count = data.audio.favoriteCount || 0;
@@ -72,11 +159,15 @@
 <h1>{data.audio.title}</h1>
 
 <div class="audio-player">
-    <audio controls id="player" on:play={handlePlay} autofocus>
-        <source src="/{data.audio.path}" type={data.mimeType} />
-        <source src="/{data.audio.transcodedPath}" type="audio/aac" />
-        <p>Your browser doesn't support the audio element.</p>
-    </audio>
+    <AudioPlayer
+        autofocus
+        bind:audioElement
+        on:play={handlePlay}
+        sources={[
+            { src: `/${data.audio.path}`, type: data.mimeType },
+            { src: `/${data.audio.transcodedPath}`, type: "audio/aac" },
+        ]}
+    />
     <a
         href="/{data.audio.path}"
         download={data.audio.title +
@@ -137,7 +228,7 @@
     </div>
     {#if data.audio.user}
         <p>
-            Uploaded by: <a href="/user/{data.audio.user.id}"
+            Uploaded by: <a href="/user/@{encodeURIComponent(data.audio.user.name)}"
                 >{data.audio.user.name}</a
             >
         </p>
@@ -146,6 +237,24 @@
         {/if}
     {/if}
     <p>Upload date: {new Date(data.audio.createdAt).toLocaleDateString()}</p>
+    {#if chapters.length > 0}
+        <details class="chapters">
+            <summary>Chapters</summary>
+            <ol>
+                {#each chapters as chapter}
+                    <li>
+                        <button
+                            type="button"
+                            on:click={() => seekToChapter(chapter.time)}
+                        >
+                            <span>{chapter.timestamp}</span>
+                            {chapter.label}
+                        </button>
+                    </li>
+                {/each}
+            </ol>
+        </details>
+    {/if}
     {#if data.user}
         {#if data.audio.user && data.audio.user.id !== data.user.id}
             {#if data.isFollowing}
@@ -163,9 +272,9 @@
             {/if}
         {/if}
     {/if}
-    {#if data.audio.description}
+    {#if renderedDescription}
         <h2>Description:</h2>
-        <SafeMarkdown source={data.audio.description} />
+        <SafeMarkdown source={renderedDescription} />
     {/if}
 
     {#if data.user && (data.isAdmin || data.user.id === data.audio.user?.id)}
@@ -221,13 +330,6 @@
     </section>
 
     {#if data.user && !data.user.isBanned}
-        {#if !data.user.isTrusted}
-            <p role="alert">
-                You're not trusted yet. Your comments will be reviewed before
-                being shown. If you submit a comment, it will not be displayed
-                until it's reviewed.
-            </p>
-        {/if}
         <form use:enhance action="?/add_comment" method="POST">
             {#if form?.replyTo}
                 <input type="hidden" name="parentId" value={form.replyTo.id} />
@@ -258,12 +360,6 @@
     /* Styling for the audio player section */
     .audio-player {
         margin-bottom: 1rem;
-    }
-
-    /* Styling for the audio controls */
-    audio {
-        width: 100%;
-        margin-bottom: 0.5rem;
     }
 
     /* Styling for the download link */
@@ -338,6 +434,46 @@
     .audio-details h2 {
         margin-top: 1rem;
         color: #333;
+    }
+
+    .chapters {
+        margin-top: 1rem;
+    }
+
+    .chapters summary {
+        cursor: pointer;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .chapters ol {
+        margin: 0.5rem 0 0;
+        padding-left: 1.5rem;
+    }
+
+    .chapters li {
+        margin: 0.25rem 0;
+    }
+
+    .audio-details .chapters button {
+        background: none;
+        border: none;
+        color: #007bff;
+        cursor: pointer;
+        margin: 0;
+        padding: 0;
+        text-align: left;
+    }
+
+    .audio-details .chapters button:hover {
+        background: none;
+        text-decoration: underline;
+    }
+
+    .chapters span {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        margin-right: 0.5rem;
     }
 
     /* Styling for the delete and move buttons */
