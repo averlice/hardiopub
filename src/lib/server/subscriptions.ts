@@ -9,7 +9,9 @@ export const subscribe = async (event: RequestEvent): Promise<any> => {
     }
     
     let subscribedToUser;
-    if (event.route.id == "/user/[id]") subscribedToUser = await User.findByPk(event.params.id);
+    if (event.route.id == "/user/[id]")
+        if (!event.params.id?.includes("@")) subscribedToUser = await User.findByPk(event.params.id);
+        else subscribedToUser = await User.findOne({ where: { name: event.params.id.slice(1) } });
     else if (event.route.id == "/listen/[id]") {
         const audio = await Audio.findByPk(event.params.id);
         subscribedToUser = await User.findByPk(audio?.userId);
@@ -38,7 +40,9 @@ export const unsubscribe = async (event: RequestEvent): Promise<any> => {
     }
     
     let subscribedToUser;
-    if (event.route.id == "/user/[id]") subscribedToUser = await User.findByPk(event.params.id);
+    if (event.route.id == "/user/[id]")
+        if (!event.params.id?.includes("@")) subscribedToUser = await User.findByPk(event.params.id);
+    else subscribedToUser = await User.findOne({ where: { name: event.params.id.slice(1) } });
     else if (event.route.id == "/listen/[id]") {
         const audio = await Audio.findByPk(event.params.id);
         subscribedToUser = await User.findByPk(audio?.userId);
