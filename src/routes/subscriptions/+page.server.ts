@@ -33,7 +33,7 @@ export const load: ServerLoad = async (event) => {
             page === 1
                 ? (
                       await Stream.findAll({
-                          where: { state: "active" } ,
+                          where: { state: "active", userId: { [Op.in]: subscribedToUsers } } ,
                           order: [["createdAt", "DESC"]],
                           include: User,
                       })

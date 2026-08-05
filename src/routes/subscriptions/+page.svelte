@@ -25,6 +25,7 @@
     totalPages={data.totalPages}
     currentUser={data.user}
     paginationBaseUrl="/subscriptions"
+    groupThreshold={0}
 />
 {:else if data.streams.length == 0}
 Nobody you subscribed to has posted yet

@@ -95,7 +95,7 @@ export const actions: Actions = {
                 userId: subscription.subscriberId,
                 actorId: user.id,
                 type: NotificationType.upload,
-                targetType: NotificationTargetType.stream,
+                targetType: NotificationTargetType.audio,
                 targetId: audio.id,
             });
         }
