@@ -303,7 +303,7 @@
             <StreamChatList
                 streamId={data.archivedStreamId}
                 chats={data.archivedStreamChats}
-                user={data.user}
+                user={data.user ?? undefined}
                 isAdmin={data.isAdmin}
                 streamOwnerId={data.audio.user?.id ?? null}
                 onDelete={async (chatId) => {
@@ -321,7 +321,7 @@
             <CommentList
                 comments={data.comments}
                 isAdmin={data.isAdmin}
-                user={data.user}
+                user={data.user ?? undefined}
                 {onReply}
             />
         {:else}
