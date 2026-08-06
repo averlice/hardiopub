@@ -26,6 +26,7 @@ import {
     Stream,
     StreamChat,
     Subscription,
+    AudioEdit,
 } from "$lib/server/database";
 import AudioFavorite from "$lib/server/database/models/audio_favorite";
 import { error, fail, redirect } from "@sveltejs/kit";
@@ -34,6 +35,12 @@ import sendEmail from "$lib/server/email";
 import { json, Op, Sequelize } from "sequelize";
 import { Json } from "sequelize/lib/utils";
 import { subscribe, unsubscribe } from "$lib/server/subscriptions";
+import {
+    AudioEditLimitError,
+    AudioNotFoundError,
+    MAX_USER_AUDIO_EDITS,
+    updateAudioDetails,
+} from "$lib/server/audio_edits";
 
 export const load: PageServerLoad = async (event) => {
     const audio = await Audio.findByPk(event.params.id, {
@@ -97,6 +104,17 @@ export const load: PageServerLoad = async (event) => {
     }
 
     const sortedComments = Comment.constructThreads(comments);
+    const canEdit = Boolean(
+        viewer && (viewer.isAdmin || viewer.id === audio.userId),
+    );
+    const edits = canEdit
+        ? await AudioEdit.findAll({
+              where: { audioId: audio.id },
+              include: [{ model: User, as: "editor" }],
+              order: [["createdAt", "DESC"]],
+          })
+        : [];
+    const userEditCount = edits.filter((edit) => !edit.isAdminEdit).length;
 
     // Query 2: Get interaction data (following status, favorite count, user favorite status)
     let isFollowing = false;
@@ -149,15 +167,15 @@ export const load: PageServerLoad = async (event) => {
         // Continue with default values
     }
 
-            const subscribers = await Subscription.count({
-            where: { subscribedToId: audio.userId }
-        });
+    const subscribers = await Subscription.count({
+        where: { subscribedToId: audio.userId },
+    });
     
     const user = event.locals.user;
     let subscription;
     if (user) {
         subscription = await Subscription.findOne({
-            where: { subscriberId: user.id, subscribedToId: audio.userId }
+            where: { subscriberId: user.id, subscribedToId: audio.userId },
         });
     }
         
@@ -178,11 +196,107 @@ export const load: PageServerLoad = async (event) => {
                   order: [["createdAt", "ASC"]],
               }).then((chats) => chats.map((c) => c.toClientside()))
             : null,
-            isSubscribed
+        isSubscribed,
+        canEdit,
+        hasEdits: Boolean(viewer?.isAdmin && edits.length > 0),
+        remainingEdits: viewer?.isAdmin
+            ? null
+            : Math.max(0, MAX_USER_AUDIO_EDITS - userEditCount),
+        edits: edits.map((edit) => ({
+            id: edit.id,
+            previousTitle: edit.previousTitle,
+            previousDescription: edit.previousDescription,
+            newTitle: edit.newTitle,
+            newDescription: edit.newDescription,
+            isAdminEdit: edit.isAdminEdit,
+            restoredEditId: edit.restoredEditId,
+            createdAt: edit.createdAt.toISOString(),
+            editor: edit.editor?.toClientside(),
+        })),
     };
 };
 
 export const actions: Actions = {
+    revertEdit: async (event) => {
+        const user = event.locals.user;
+        if (!user || !user.isAdmin) {
+            return error(403, "Forbidden");
+        }
+        const form = await event.request.formData();
+        const editId = form.get("editId");
+        if (typeof editId !== "string" || !editId) {
+            return error(400, "Missing edit id");
+        }
+
+        const edit = await AudioEdit.findByPk(editId);
+        if (!edit || edit.audioId !== event.params.id) {
+            return error(404, "Edit not found");
+        }
+
+        await updateAudioDetails(
+            edit.audioId,
+            user,
+            edit.previousTitle,
+            edit.previousDescription,
+            edit.id,
+        );
+        return { revertSuccess: true };
+    },
+    edit: async (event) => {
+        const user = event.locals.user;
+        const audio = await Audio.findByPk(event.params.id);
+        if (!audio) {
+            return error(404, "Not found");
+        }
+        if (!user || (!user.isAdmin && user.id !== audio.userId)) {
+            return error(403, "Forbidden");
+        }
+        if (!user.isAdmin && (user.isBanned || !user.isVerified)) {
+            return error(403, "Forbidden");
+        }
+
+        const form = await event.request.formData();
+        const titleValue = form.get("title");
+        const descriptionValue = form.get("description");
+        const title = typeof titleValue === "string" ? titleValue.trim() : "";
+        const description =
+            typeof descriptionValue === "string" ? descriptionValue : "";
+
+        if (title.length < 3 || title.length > 120) {
+            return fail(400, {
+                editMessage: "Title must be between 3 and 120 characters",
+            });
+        }
+        if (description.length > 5000) {
+            return fail(400, {
+                editMessage: "Description must not exceed 5000 characters",
+            });
+        }
+
+        try {
+            const edit = await updateAudioDetails(
+                audio.id,
+                user,
+                title,
+                description,
+            );
+            if (!edit) {
+                return fail(400, { editMessage: "No changes were made" });
+            }
+        } catch (err) {
+            if (err instanceof AudioEditLimitError) {
+                return fail(403, {
+                    editMessage: "You have reached the limit of 3 edits",
+                });
+            }
+            if (err instanceof AudioNotFoundError) {
+                return error(404, "Not found");
+            }
+            throw err;
+        }
+
+        return { editSuccess: true };
+    },
     delete: async (event) => {
         const user = event.locals.user;
         const audio = await Audio.findByPk(event.params.id, { include: User });

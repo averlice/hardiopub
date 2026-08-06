@@ -28,6 +28,7 @@
     import type { ClientsideComment } from "$lib/types.js";
     import SubscribeButton from "$lib/components/subscribe_button.svelte";
     import AudioPlayer from "$lib/components/audio_player.svelte";
+    import Modal from "$lib/components/modal.svelte";
 
     export let form: any;
 
@@ -43,6 +44,8 @@
     };
 
     let audioElement: HTMLAudioElement | undefined;
+    let showEditDialog = false;
+    let showHistoryDialog = false;
 
     onMount(() => title.set(data.audio.title));
     const handlePlay = () => {
@@ -156,7 +159,10 @@
     }
 </script>
 
-<h1>{data.audio.title}</h1>
+<h1>
+    {data.audio.title}
+    {#if data.hasEdits}<span class="edited-tag">[edited]</span>{/if}
+</h1>
 
 <div class="audio-player">
     <AudioPlayer
@@ -275,6 +281,114 @@
     {#if renderedDescription}
         <h2>Description:</h2>
         <SafeMarkdown source={renderedDescription} />
+    {/if}
+
+    {#if data.canEdit}
+        <button
+            type="button"
+            on:click={() => (showEditDialog = true)}
+            disabled={data.remainingEdits === 0}>Edit audio details</button
+        >
+        {#if data.remainingEdits === 0}
+            <p>You have used all 3 available edits.</p>
+        {/if}
+
+        <Modal bind:visible={showEditDialog}>
+            <h2>Edit audio details</h2>
+            {#if form?.editMessage}
+                <p class="form-message" role="alert">{form.editMessage}</p>
+            {/if}
+            <form
+                class="edit-form"
+                use:enhance={() => {
+                    return async ({ result, update }) => {
+                        await update();
+                        if (result.type === "success") {
+                            showEditDialog = false;
+                        }
+                    };
+                }}
+                action="?/edit"
+                method="POST"
+            >
+                    <label for="edit-title">Title:</label>
+                    <input
+                        id="edit-title"
+                        name="title"
+                        type="text"
+                        value={data.audio.title}
+                        required
+                        minlength="3"
+                        maxlength="120"
+                    />
+                    <label for="edit-description">Description:</label>
+                    <textarea
+                        id="edit-description"
+                        name="description"
+                        maxlength="5000"
+                        value={data.audio.description}
+                    ></textarea>
+                    {#if data.remainingEdits !== null}
+                        <p>{data.remainingEdits} edit(s) remaining.</p>
+                    {/if}
+                    <button type="submit">Save changes</button>
+                    <button
+                        type="button"
+                        on:click={() => (showEditDialog = false)}>Cancel</button
+                    >
+            </form>
+        </Modal>
+
+        {#if data.edits.length > 0}
+            <button type="button" on:click={() => (showHistoryDialog = true)}
+                >View edit history</button
+            >
+            <Modal bind:visible={showHistoryDialog}>
+                <h2>Edit history</h2>
+                <ol class="edit-history">
+                    {#each data.edits as edit}
+                        <li>
+                            <strong>{new Date(edit.createdAt).toLocaleString()}</strong>
+                            by @{edit.editor?.name || "unknown"}
+                            {#if edit.isAdminEdit}(administrator){/if}
+                            {#if edit.restoredEditId}(restoration){/if}
+                            <details>
+                                <summary>View changes</summary>
+                                <p><strong>Title:</strong> {edit.previousTitle} → {edit.newTitle}</p>
+                                <p><strong>Previous description:</strong></p>
+                                <pre>{edit.previousDescription}</pre>
+                                <p><strong>New description:</strong></p>
+                                <pre>{edit.newDescription}</pre>
+                                {#if data.isAdmin}
+                                    <form
+                                        use:enhance={() => {
+                                            return async ({ result, update }) => {
+                                                await update();
+                                                if (result.type === "success") {
+                                                    showHistoryDialog = false;
+                                                }
+                                            };
+                                        }}
+                                        action="?/revertEdit"
+                                        method="POST"
+                                    >
+                                        <input
+                                            type="hidden"
+                                            name="editId"
+                                            value={edit.id}
+                                        />
+                                        <button type="submit">Revert this edit</button>
+                                    </form>
+                                {/if}
+                            </details>
+                        </li>
+                    {/each}
+                </ol>
+                <button type="button" on:click={() => (showHistoryDialog = false)}
+                    >Close</button
+                >
+            </Modal>
+        {/if}
     {/if}
 
     {#if data.user && (data.isAdmin || data.user.id === data.audio.user?.id)}
@@ -553,4 +667,37 @@
         color: #333;
         padding: 0.25rem 0;
     }
+
+    .edited-tag {
+        font-size: 0.65em;
+        font-weight: normal;
+    }
+
+    .edit-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .edit-form input,
+    .edit-form textarea {
+        padding: 0.5rem;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .edit-form textarea {
+        min-height: 8rem;
+    }
+
+    .edit-history pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    .form-message {
+        color: #a00;
+    }
+
 </style>
