@@ -255,7 +255,7 @@ export default class Notification extends Model {
         if (!user || !user.notificationKey) return;
 
         if (process.env.NO_PUSH_NOTIFICATIONS) {
-            console.log(`Title: ${title}\nMessage: ${message}`);
+            console.log(`New notification for ${user.displayName}, ID ${user.id}\nTitle: ${title}\nMessage: ${message}`);
             return;
         }
 
