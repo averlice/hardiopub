@@ -254,6 +254,11 @@ export default class Notification extends Model {
         const user = await User.findOne({ where: { id: resolvedNotification.userId } });
         if (!user || !user.notificationKey) return;
 
+        if (process.env.NO_PUSH_NOTIFICATIONS) {
+            console.log(`Title: ${title}\nMessage: ${message}`);
+            return;
+        }
+
         const response = await fetch(
             "https://api.onesignal.com/notifications?c=push",
             {
