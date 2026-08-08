@@ -243,7 +243,7 @@ export const actions: Actions = {
             metadata: { audioId: audio.id },
         }));
         if (payloads.length) {
-            await Notification.bulkCreate(payloads as any);
+            await Notification.bulkCreate(payloads as any, { individualHooks: true });
         }
 
         return { success: true };
