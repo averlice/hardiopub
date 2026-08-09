@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-import { Audio, Comment, User, Stream } from "$lib/server/database";
+import { Audio, Comment, User, Stream, AudioFavorite } from "$lib/server/database";
 import { error, redirect } from "@sveltejs/kit";
 import { Op } from "sequelize";
 import type { Actions, PageServerLoad } from "./$types";
@@ -64,6 +64,12 @@ export const load: PageServerLoad = async (event) => {
         }),
     ]);
 
+    let clientsideAudios = [];
+    for (const audio of audios.rows) {
+        const favoriteCount = await AudioFavorite.count({ where: { audioId: audio.id } });
+        clientsideAudios.push(audio.toClientside(true, favoriteCount));
+    }
+
     const subscribers = await Subscription.count({
         where: { subscribedToId: profileUser.id }
     });
@@ -82,7 +88,7 @@ export const load: PageServerLoad = async (event) => {
 
     return {
         stream: activeStream?.toClientside(false) ?? null,
-        audios: audios.rows.map((audio) => audio.toClientside()),
+        audios: clientsideAudios,
         count: audios.count,
         page,
         limit,

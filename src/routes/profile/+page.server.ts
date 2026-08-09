@@ -18,7 +18,7 @@
  */
 import { fail, redirect, type Actions } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
-import { User, Audio } from "$lib/server/database";
+import { User, Audio, AudioFavorite } from "$lib/server/database";
 import { hash } from "bcrypt";
 import { v4 as uuidv4 } from "uuid";
 
@@ -40,13 +40,19 @@ export const load: PageServerLoad = async (event) => {
         order: [["createdAt", "DESC"]],
     });
 
+    let clientsideAudios = [];
+    for (const audio of audios.rows) {
+        const favoriteCount = await AudioFavorite.count({ where: { audioId: audio.id } });
+        clientsideAudios.push(audio.toClientside(true, favoriteCount));
+    }
+
     return {
         name: user.name,
         email: user.email,
         displayName: user.displayName,
         bio: user.bio,
         streamKey: user.streamKey,
-        audios: audios.rows.map((audio) => audio.toClientside()),
+        audios: clientsideAudios,
         count: audios.count,
         page,
         limit,
