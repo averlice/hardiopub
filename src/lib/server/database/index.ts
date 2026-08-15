@@ -29,6 +29,7 @@ import Stream from "./models/stream";
 import StreamChat from "./models/stream_chat";
 import StreamMute from "./models/stream_mute";
 import Subscription from "./models/subscription"
+import AudioEdit from "./models/audio_edit";
 dotenv.config();
 
 if (
@@ -46,7 +47,7 @@ const database = new Sequelize({
     dialect: "mariadb",
     username: process.env.DATABASE_USER,
     password: process.env.DATABASE_PASSWORD,
-    models: [User, Audio, Comment, PlaysTracker, Notification, AudioFollow, AudioFavorite, Stream, StreamChat, StreamMute, Subscription],
+    models: [User, Audio, Comment, PlaysTracker, Notification, AudioFollow, AudioFavorite, Stream, StreamChat, StreamMute, Subscription, AudioEdit],
     logging: false,
     host: "127.0.0.1",
     port: 3306,
@@ -54,4 +55,4 @@ const database = new Sequelize({
 
 export default database;
 
-export { User, Audio, Comment, PlaysTracker, Notification, AudioFollow, AudioFavorite, Stream, StreamChat, StreamMute, Subscription };
+export { User, Audio, Comment, PlaysTracker, Notification, AudioFollow, AudioFavorite, Stream, StreamChat, StreamMute, Subscription, AudioEdit };
