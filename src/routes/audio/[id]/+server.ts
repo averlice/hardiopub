@@ -30,24 +30,31 @@ import { error } from "@sveltejs/kit";
 // The ghost of Alan Turing will haunt your dreams, whispering "Why? Why did you do this?" for all eternity.
 // So please, I'm begging you, with tears in my eyes and trembling fingers on the keyboard: DO NOT USE THIS IN PRODUCTION.
 export const GET: RequestHandler = async (event) => {
-  if (!dev) {
-    return error(403, "forbidden");
-  }
   let id = event.params.id;
-  // serve ./audio/{id} if exists, as octet stream.
+  // serve ./audio/{id} or ./audio/{id}.aac if exists.
+  // NOTE: upstream ships this route dev-only and warns against prod use,
+  // expecting a reverse proxy to host /audio. This hardened fork has no
+  // reverse proxy (Cloudflare Tunnel -> node directly), so we serve here in
+  // prod too. The id is validated to prevent path traversal.
   if (id.startsWith(".") || id.includes("/")) {
     return error(400, "Invalid id");
   }
-  const path = `./audio/${id}`;
-  try {
-    const file = await fs.readFile(path);
-    return new Response(file, {
-      headers: {
-        "Content-Type": "application/octet-stream",
-        "Content-Length": file.byteLength.toString(),
-      },
-    });
-  } catch (e) {
-    return error(404, "Not found");
+  // Try the source file first, then the .aac transcoded version.
+  const candidates = [`./audio/${id}`, `./audio/${id}.aac`];
+  for (const path of candidates) {
+    try {
+      const file = await fs.readFile(path);
+      const isAac = path.endsWith(".aac");
+      return new Response(file, {
+        headers: {
+          "Content-Type": isAac ? "audio/aac" : "audio/wav",
+          "Content-Length": file.byteLength.toString(),
+          "Accept-Ranges": "bytes",
+        },
+      });
+    } catch (e) {
+      // try next candidate
+    }
   }
+  return error(404, "Not found");
 };

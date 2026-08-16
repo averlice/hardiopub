@@ -1,0 +1,26 @@
+[Unit]
+Description=AudioPub dedicated Icecast (port 8001, loopback) -- hardened fork
+After=network.target
+
+[Service]
+Type=simple
+# Run as root so firejail can build the sandbox; icecast itself drops to the
+# icecast-ap user via its config <changeowner>. No --user flag (avoids the
+# /run/firejail read-only remount quirk observed on Debian).
+WorkingDirectory=/etc/icecast-ap
+Environment=FIREJAIL_LOCKFILE=/var/lib/icecast-ap/.firejail-run/lock
+# Clear any stale read-only firejail tmpfs mounts from a previous run so the
+# next launch doesn't fail with "create_empty_dir_as_root".
+ExecStartPre=/bin/sh -c 'for m in /run/firejail/firejail.ro.file /run/firejail/firejail.ro.dir; do umount "$m" 2>/dev/null; done; rm -rf /run/firejail; mkdir -p /run/firejail; chmod 755 /run/firejail'
+ExecStart=/usr/bin/firejail --profile=/etc/firejail/icecast-ap.profile --quiet /usr/bin/icecast2 -c /etc/icecast-ap/icecast-ap.xml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log/icecast-ap /var/lib/icecast-ap
+PrivateTmp=true
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

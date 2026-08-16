@@ -1,0 +1,49 @@
+<!--
+  Dedicated Icecast instance for AudioPub (loopback-only, port 8001).
+  Replace the CHANGE_ME placeholders with strong, unique secrets.
+  This config binds to 127.0.0.1 only -- expose via your tunnel of choice
+  (e.g. Cloudflare Tunnel / Tailscale) if external streamers need access.
+-->
+<icecast>
+    <location>change-me.example.com</location>
+    <admin>admin@example.com</admin>
+
+    <limits>
+        <clients>100</clients>
+        <sources>10</sources>
+        <queue-size>524288</queue-size>
+        <client-timeout>30</client-timeout>
+        <header-timeout>15</header-timeout>
+        <source-timeout>10</source-timeout>
+    </limits>
+
+    <authentication>
+        <!-- source clients (streamers) use these creds -->
+        <source-password>CHANGE_ME_SOURCE_PASSWORD</source-password>
+        <!-- admin web interface / API uses these -->
+        <admin-user>admin</admin-user>
+        <admin-password>CHANGE_ME_ADMIN_PASSWORD</admin-password>
+    </authentication>
+
+    <hostname>localhost</hostname>
+
+    <listen-socket>
+        <port>8001</port>
+        <bind-address>127.0.0.1</bind-address>
+    </listen-socket>
+
+    <mount>
+        <max-listeners>100</max-listeners>
+        <public>0</public>
+    </mount>
+
+    <fileserve>1</fileserve>
+    <logdir>/var/log/icecast-ap</logdir>
+    <webroot>/usr/share/icecast2/web</webroot>
+    <adminroot>/usr/share/icecast2/admin</adminroot>
+
+    <changeowner>
+        <user>icecast-ap</user>
+        <group>icecast-ap</group>
+    </changeowner>
+</icecast>

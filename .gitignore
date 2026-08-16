@@ -1,22 +1,21 @@
-node_modules
-
-# Output
-.output
-.vercel
-/.svelte-kit
-/build
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Env
+# secrets / local env
 .env
 .env.*
 !.env.example
-!.env.test
 
-# Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
+# uploaded media (generated at runtime, repo root only)
 /audio/
+/images/
+
+# build output
+build/
+.svelte-kit/
+
+# deps
+node_modules/
+
+# backups
+backups/
+
+# logs
+*.log

@@ -1,0 +1,35 @@
+[Unit]
+Description=AudioPub (SvelteKit audio-sharing server) -- hardened fork
+After=network.target mariadb.service
+Requires=mariadb.service
+
+[Service]
+Type=simple
+User=audiopub
+Group=audiopub
+WorkingDirectory=/home/audiopub
+Environment=NODE_ENV=production
+# Run the adapter-node build entrypoint (NOT the Express-wrapped server.ts,
+# which breaks multipart form uploads). Node 22 strips TS types if you run
+# server.ts instead, but build/index.js is the supported production entry.
+ExecStart=/usr/bin/node /home/audiopub/build/index.js
+Restart=on-failure
+RestartSec=5
+# Unit-level hardening (no firejail for now -- see audiopub.profile for the
+# experimental firejailed variant launched manually via `su audiopub`).
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/audiopub/backups /home/audiopub/audio /home/audiopub/images
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictSUIDSGID=true
+LockPersonality=true
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

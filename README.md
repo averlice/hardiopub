@@ -1,74 +1,120 @@
-# AudioPub
+# hardiopub
 
-AudioPub is a platform for users to publicly share audio content and engage with other users or audios.
+A **hardened, self-hostable fork** of [audiopub-sv](https://github.com/the-byte-bender/audiopub-sv)
+(the-byte-bender's AGPL-3.0 audio-sharing platform).
 
-## WTF is wrong with the commit history?
+hardiopub keeps audiopub's features (upload, listen, live streaming, admin
+moderation) but packages the deployment the way we actually run it in
+production on a single Debian box:
 
-You may notice that the commit history for this project seems to start abruptly. This is because I recently ported the entire application to Svelte, resulting in a new repository. The previous codebase and its history are no longer relevant to this current implementation.
+- **Unprivileged service users** — the app runs as `audiopub`, streaming runs
+  as `icecast-ap`. Neither has sudo.
+- **Dedicated, loopback-only Icecast** — AudioPub's live-stream feature points
+  at its *own* Icecast on `127.0.0.1:8001` with separate admin/source creds,
+  instead of squatting on a shared radio server's Icecast.
+- **Firejail sandbox profiles** — loopback-only network, dropped capabilities,
+  seccomp, isolated `/tmp`/`/dev`. (See "Firejail status" below for the caveat.)
+- **systemd units** with unit-level hardening (`NoNewPrivileges`,
+  `ProtectSystem=strict`, restricted address families).
+- **No SMTP / no push** — `NO_EMAIL=true` + `NO_PUSH_NOTIFICATIONS=true` because
+  a personal instance has no mail server.
+- **Production audio serving fix** — upstream ships the `/audio/[id]` route
+  dev-only (it 403s in production, expecting a reverse proxy). hardiopub serves
+  uploaded audio directly from the app, since this deployment has no reverse
+  proxy (Cloudflare Tunnel → node directly).
 
-## License.
+## What works vs. upstream quirks we hit
 
-This project is licensed under the GNU Affero General Public License (AGPL) version 3.0.
+| Problem | Fix in hardiopub |
+| --- | --- |
+| `/upload` returns 405 | Run the **adapter-node build entrypoint** (`build/index.js`), not the Express-wrapped `server.ts` (Express eats the multipart body). |
+| Upload 500 `ENOENT audio/<id>` | Create the `audio/` and `images/` dirs (owned by the app user) under the repo root. |
+| Playback dead (403) | `/audio/[id]` now serves in production (patched route). |
+| App won't build | `PUBLIC_ONE_SIGNAL_APP_ID` must be defined at build time (may be empty). |
+| App won't boot | `ICECAST_HOST`/`ICECAST_ADMIN_USER`/`ICECAST_ADMIN_PASSWORD` are required by `hooks.server.ts` (connection not required). |
 
-Please note that this section provides only a brief overview and is not legal advice. For the full terms and conditions of the license, refer to the `LICENSE` file in this repository or visit the official GNU AGPL license page at:
+## Requirements
 
-https://www.gnu.org/licenses/agpl-3.0.en.html
+- Node.js 22+ (for `--experimental-strip-types` if running `server.ts`, or just
+  to run the compiled `build/index.js`)
+- MariaDB/MySQL
+- Icecast2 (for the dedicated streaming instance)
+- firejail (optional, for sandboxing)
+- A tunnel/reverse proxy for public access (e.g. Cloudflare Tunnel, Tailscale)
 
-It's important that you read and understand the full license text before modifying or distributing this software. If you have any questions about your rights and obligations under this license, consider consulting someone who knows what they're doing.
+## Quick start
 
-Key points of the AGPL (subject to the full license terms):
+```bash
+# 1. install deps + build
+npm install
+PUBLIC_ONE_SIGNAL_APP_ID= npm run build
 
-1. You may use, modify, and distribute the software.
-2. If you modify the software, you must make your changes available under the same AGPL license.
-3. If you run a modified version of the software on a server and allow users to interact with it remotely, you must provide the source code of your modified version to those users.
+# 2. create the upload dirs the app writes into
+mkdir -p audio images
+chown -R audiopub:audiopub audio images
 
-I chose this license to ensure that improvements and modifications to this project remain open and accessible to the community.
+# 3. db
+mysql> CREATE DATABASE audiopub;
+mysql> CREATE USER 'audiopub'@'127.0.0.1' IDENTIFIED BY '…';
+mysql> GRANT ALL ON audiopub.* TO 'audiopub'@'127.0.0.1';
+npm run db:migrate
 
-## User-Generated Content
+# 4. configure
+cp .env.example .env   # fill in real secrets (never commit .env!)
 
-While the code for AudioPub is licensed under the AGPL, it's important to note that user-generated content (such as uploaded audio files, comments, and other user generated content) is not covered by this license. I do not claim ownership or copyright over user-generated content. All rights to such content belong to their respective creators or rightful owners.
+# 5. run (production entrypoint)
+node build/index.js    # binds 127.0.0.1:3000
+```
 
-Users are responsible for ensuring they have the necessary rights and permissions for any content they upload or share on AudioPub.
+## Hardening layout (`deploy/`)
 
-## Getting Started
+```
+deploy/
+  audiopub.profile          firejail profile for the app (loopback-only)
+  audiopub.netfilter        loopback iptables rules
+  icecast-ap.profile        firejail profile for the dedicated Icecast
+  icecast-ap.netfilter      loopback iptables rules
+  icecast-ap.xml            dedicated Icecast config (placeholder creds)
+  audiopub.service          systemd unit (build/index.js, hardened)
+  icecast-ap.service        systemd unit (firejailed, hardened)
+```
 
-AudioPub is built with SvelteKit and uses the Node adapter. It also uses MariaDB as its database. To set up the development environment:
+Install them on the host:
 
-1. Clone the repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Set up MariaDB:
-   - Install MariaDB on your system if you haven't already
-   - Create a new database for AudioPub
-4. Configure environment variables:
-   - Rename `.env.example` to `.env` and Fill in the values in the `.env` file
-5. Start the development server:
-   ```
-   npm run dev
-   ```
+```bash
+cp deploy/audiopub.profile deploy/audiopub.netfilter /etc/firejail/
+cp deploy/icecast-ap.profile deploy/icecast-ap.netfilter /etc/firejail/
+install -o root -g root -m 644 deploy/icecast-ap.xml /etc/icecast-ap/icecast-ap.xml
+install -o root -g root -m 644 deploy/audiopub.service /etc/systemd/system/
+install -o root -g root -m 644 deploy/icecast-ap.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now audiopub icecast-ap
+```
 
-This will allow you to explore and modify the code locally.
+### Firejail status (read this)
 
-## Contributing
+- The **Icecast** firejail unit works when launched manually via
+  `su icecast-ap` (loopback 8001, admin auth OK). The systemd unit carries an
+  `ExecStartPre` workaround for a Debian firejail quirk where a stale
+  read-only `/run/firejail` tmpfs from a previous run blocks the next launch.
+- The **app** firejail profile is provided but the app currently runs via the
+  plain systemd unit (unit-level hardening). We found firejail's `--user` flag
+  and the `/run/firejail` read-only remount fought clean systemd integration,
+  so we kept the app on systemd hardening + the loopback netfilter ready to
+  layer back in. Treat the app firejail as experimental.
 
-I welcome contributions to AudioPub! your efforts are appreciated. Here's how you can contribute:
+### Loopback-only by design
 
-1. Fork the repository
-2. Create a new branch for your changes.
-3. Make your changes and commit them with clear, descriptive messages
-4. Push your changes to your fork
-5. Submit a pull request with a comprehensive description of your changes
+Both firejail netfilters drop all non-loopback traffic. The app binds
+`127.0.0.1:3000`; the dedicated Icecast binds `127.0.0.1:8001`. Public access
+is provided by your tunnel (Cloudflare Tunnel / Tailscale), which connects to
+the loopback port — so the attack surface stays on localhost.
 
-For major changes, please open an issue first to discuss what you would like to change. You can also open an issue for suggestions, discussions, bugs etc.
+> Note: Cloudflare's *free* HTTP tunnel is not ideal for raw Icecast media
+> streams (long-lived ICY connections, and free-tier TOS). For external
+> streamers, prefer a TCP/Spectrum tunnel (paid) or expose 8001 over Tailscale
+> to your streamers' tailnet.
 
-## Security Notice
+## License
 
-While AudioPub's code is open source, please be aware that I cannot guarantee the security of hosted forks or modified versions of the platform. For your safety and privacy, it's recommended to use only the official deployment at [audiopub.site](https://audiopub.site).
-
-Third-party deployments may contain undisclosed modifications that could compromise your security or privacy. Always exercise caution when using platforms handling your personal data or content.
-
-## Contact
-
-For support, feedback, or inquiries, please open an issue or email me at cccefg2@gmail.com
+AGPL-3.0 — inherited from audiopub-sv. See `LICENSE`.
